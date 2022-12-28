@@ -108,8 +108,10 @@ class SpatialScopeCTI:
         return self.InitProp
         
     def LoadLikelihoodTable(self):
-        with gzip.open(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/extdata/Q_mat_1.txt.gz','rt') as f:
+        with gzip.open(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/extdata/Q_mat_1_1.txt.gz','rt') as f:
             lines = f.readlines()
+        with gzip.open(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/extdata/Q_mat_1_2.txt.gz','rt') as f:
+            lines += f.readlines()
 
         Q1 = {}
         for i in range(len(lines)):
@@ -120,8 +122,10 @@ class SpatialScopeCTI:
             else:
                 Q1[str(i + 10)] = np.reshape(np.array(lines[i].split(' ')).astype(np.float), (2536, 103)).T
 
-        with gzip.open(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/extdata/Q_mat_2.txt.gz','rt') as f:
+        with gzip.open(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/extdata/Q_mat_2_1.txt.gz','rt') as f:
             lines2 = f.readlines()
+        with gzip.open(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/extdata/Q_mat_2_2.txt.gz','rt') as f:
+            lines2 += f.readlines()
 
         Q2 = {}
         for i in range(len(lines2)):

@@ -5,7 +5,6 @@ A unified approach for integrating spatial and single-cell transcriptomics data 
 ``` shell
 $ git clone https://github.com/YangLabHKUST/SpatialScope.git
 $ cd SpatialScope
-$ git lfs pull
 $ conda env create -f environment.yml
 $ conda activate SpatialScope
 ```
