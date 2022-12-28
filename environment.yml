@@ -1,0 +1,25 @@
+name: SpatialScope
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+  - anaconda
+dependencies:
+  - python=3.9  
+  - scanpy=1.9.1
+  - squidpy=1.2.2
+  - stardist=0.8.3
+  - tensorflow=2.10.0
+  - qpsolvers=2.4.0
+  - pytorch=1.12.1
+  - pandas
+  - matplotlib
+  - anndata
+  - ipykernel
+  - scipy
+  - tqdm
+  - scikit-learn
+  - pip
+  - pip:
+    - ray==2.0.0
+
