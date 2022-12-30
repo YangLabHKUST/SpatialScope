@@ -5,6 +5,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 import scanpy as sc
 import os 
 import matplotlib as mpl
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def configure_logging(logger_name):
@@ -140,7 +143,7 @@ def PlotVisiumGene(generated_cells,gene,size=0.8,alpha_img=0.3,perc=0.00,palette
     tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
     tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
     if vis_index is not None:
-        tmp[~vis_index] = None
+        tmp[~vis_index] = 0
     if vis_index_only is not None:
         test = test[vis_index_only]
         tmp = tmp[vis_index_only]
@@ -279,3 +282,176 @@ def reorder(file1, file2, spot_id_name = 'spot_index', cell_type_colname = 'cell
     return reorder_index
 
 
+
+def VisualscDE(ad_sc,gene):
+    try:
+        tmp = ad_sc[:,gene].X.A
+    except:
+        tmp = ad_sc[:,gene].X
+    tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
+    ad_sc.obs['visual_gene'] = tmp
+    fig, axs = plt.subplots(1, 1, figsize=(10, 10))
+    sc.pl.umap(
+        ad_sc, color="visual_gene", size=10, frameon=False, show=False, ax=axs, cmap='rocket_r',title=f'${gene}$'
+    )
+    plt.tight_layout()
+    
+
+# sns.set_context('paper',font_scale=2) 
+# PlotLRGenes(generated_cells,'SLIT3','ROBO1','Smooth_muscle_cells','Fibroblast') 
+def PlotLRGenes(generated_cells,gene_L,gene_R,celltype_L,celltype_R,perc=0.0,palette_L='rocket_r',palette_R='Greens',title='',s=50,ax=None,invertY=True):
+    generated_cells_vis_L = generated_cells.copy()
+    L_ct_index = generated_cells_vis_L.obs['discrete_label_ct'].isin(np.array([celltype_L]))
+
+    generated_cells_vis_R = generated_cells.copy()
+    R_ct_index = generated_cells_vis_R.obs['discrete_label_ct'].isin(np.array([celltype_R]))
+    
+    test = generated_cells.copy()
+    if not 'spatial' in test.obsm.keys():
+        test.obsm['spatial'] = test.obs[["x", "y"]].to_numpy()
+    try:
+        tmp = test[:,test.var.index==gene_L].X.toarray().copy()
+    except:
+        tmp = test[:,test.var.index==gene_L].X.copy()        
+    tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
+    tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
+    tmp[~np.array(L_ct_index)] = 0
+    test.obs[gene_L+'_visual'] = tmp
+    
+    try:
+        tmp = test[:,test.var.index==gene_R].X.A.copy()
+    except:
+        tmp = test[:,test.var.index==gene_R].X.copy()
+    tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
+    tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min()) #+ 0.15
+    tmp[~np.array(R_ct_index)] = 0
+    test.obs[gene_R+'_visual'] = tmp
+    test.obs['test'] = 'test'
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(11, 8),dpi=100,facecolor='#fafafa')
+    sns.scatterplot(data=test.obs[L_ct_index],x='x',y='y',s=s,hue=gene_L+'_visual',ax=ax,palette=palette_L,alpha=0.8)
+    sns.scatterplot(data=test.obs[R_ct_index],x='x',y='y',s=s*0.5,style='test',markers=['s'],hue=gene_R+'_visual',ax=ax,palette=palette_R,alpha=0.6)
+    margin = (test.obs.x.max()-test.obs.x.min())*0.03
+    plt.xlim([test.obs.x.min()-margin,test.obs.x.max()+margin])
+    margin = (test.obs.y.max()-test.obs.y.min())*0.03
+    plt.ylim([test.obs.y.min()-margin,test.obs.y.max()+margin])
+    plt.axis('off')
+    plt.title(title)
+    ax.get_legend().remove()
+    if invertY:
+        plt.gca().invert_yaxis()
+    plt.show()
+    
+    
+def ScanpyDowngradeSave(f):
+    ad_sp = sc.read(f)
+    try:
+        np.save(f+'.X.npy',ad_sp.X)
+    except:
+        np.save(f+'.X.npy',ad_sp.X.A)
+    ad_sp.obs.to_csv(f+'.obs.csv')
+    ad_sp.var.to_csv(f+'.var.csv')
+    
+def ScanpyDowngradeLoad(f):
+    sc_rna = np.load(f + '.X.npy')
+    sc_rna_obs = pd.read_csv(f + '.obs.csv', index_col = 0)
+    sc_rna_var = pd.read_csv(f + '.var.csv', index_col = 0)
+    sc_rna_adata = AnnData(X = sc_rna, obs = sc_rna_obs, var = sc_rna_var)
+    return sc_rna_adata
+
+
+
+def ComputeSigma(sc_data_process_marker,cell_class_column):
+    if 'Marker' in sc_data_process_marker.var.columns:
+        sc_data_process_marker = sc_data_process_marker[:,sc_data_process_marker.var['Marker']]
+    df_category = sc_data_process_marker.obs[[cell_class_column]].astype('category').apply(lambda x: x.cat.codes)
+    cell_type_array_code = np.array(df_category[cell_class_column]) 
+    q = len(np.unique(cell_type_array_code))
+    data = sc_data_process_marker.X.toarray()
+    data_Ed = []
+    for i in range(q):
+        index = cell_type_array_code == i
+        data_Ed.append(pdist(data[index]).max())
+    return data_Ed
+
+
+def PlotVisiumCellType(ad_sp,weight,cell_type,size=1.5,ax=None):
+    test = ad_sp.copy()
+    test.obs = test.obs.merge(weight,left_index=True,right_index=True,how='left')
+    if not 'spatial' in test.obsm.keys():
+        test.obsm['spatial'] = test.obs[["x", "y"]].to_numpy()
+    
+    test.obs.loc[pd.isnull(test.obs[cell_type]),cell_type] = 0
+    test.obs[cell_type] = (test.obs[cell_type]-test.obs[cell_type].min())/(test.obs[cell_type].max()-test.obs[cell_type].min())
+    test.obs[cell_type] = test.obs['cell_count']*test.obs[cell_type]
+    sc.pl.spatial(
+        test,
+        color=cell_type,
+        size=size,
+        frameon=False,
+        alpha_img=0.,
+        show=False,
+        cmap='rocket_r',
+        ax=ax,colorbar_loc=None,title=''
+    )
+    
+    ax.axes.xaxis.label.set_visible(False)
+    ax.axes.yaxis.label.set_visible(False)
+    
+    
+def GenerateCellTypeProportion(ss_res):
+    ss_res = pd.pivot_table(ss_res[['spot_index','discrete_label_ct']],index=['spot_index'],columns=['discrete_label_ct'], aggfunc=len, fill_value=0).reset_index()
+    ss_res = ss_res.set_index("spot_index")
+    ss_res = pd.DataFrame(ss_res.values/ss_res.values.sum(1)[:,None],columns=ss_res.columns,index=ss_res.index)
+    return ss_res
+
+
+def PlotSampledData(gen_sample_adata,sc_data_process,cell_type_key,palette=None,scale=True):   
+    gen_sample_adata = gen_sample_adata.copy()
+    sc_data_process = sc_data_process.copy()
+    sc_data_process_marker = sc_data_process[:,sc_data_process.var['Marker']]
+    if sc_data_process_marker.X.max()>30:
+        print(f'Maximum value: {sc_data_process_marker.X.max()}, need to run log1p')
+        sc.pp.log1p(sc_data_process_marker)
+    adata_snrna_raw_small_raw = sc_data_process_marker
+    adata_snrna_raw_small_raw.obs_names_make_unique()
+    adata_snrna_raw_small_raw.var_names_make_unique()
+    if scale:
+        sc.pp.scale(adata_snrna_raw_small_raw,max_value=10)
+        sc.pp.scale(gen_sample_adata,max_value=10)
+    sc.tl.pca(adata_snrna_raw_small_raw, n_comps=20,use_highly_variable=False) 
+    
+    pcs = adata_snrna_raw_small_raw.varm['PCs']
+    gen_sample_adata.obsm['X_pca'] = (gen_sample_adata.X - adata_snrna_raw_small_raw.X.mean(0)) @ pcs
+    gen_sample_adata.varm['PCs'] = pcs
+
+    adata_all = adata_snrna_raw_small_raw.concatenate(gen_sample_adata)
+    adata_all.varm['PCs'] = pcs
+    adata_all.raw = adata_all
+
+    sc.pp.neighbors(adata_all, n_neighbors=15, metric = 'cosine', n_pcs=20)
+    sc.tl.umap(adata_all, min_dist = 0.5, spread = 1., maxiter = 80)
+
+    df = pd.DataFrame(adata_all.obsm['X_umap'], columns = ['x', 'y'])
+    color_mu = ['All cells from the single-cell reference data' for i in range(adata_all.shape[0]-gen_sample_adata.shape[0])]+\
+                ['Generated cells by SpatialScope' for i in range(gen_sample_adata.shape[0])]
+    df['Label'] = color_mu
+
+    fig, ax = plt.subplots(figsize=(10,10),dpi=150)
+    sns.scatterplot(data=df, x="x", y="y", hue="Label", s=2, palette = ['#a1c9f4','#c44e52'],ax=ax)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.xticks([])
+    plt.yticks([])
+    plt.legend(loc="upper left",framealpha=0,markerscale=2,handletextpad=0.2)
+    plt.show()        
+    fig, ax = plt.subplots(figsize=(10,10),dpi=150)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    sc.pl.umap(adata_all, color=[cell_type_key], size=15,
+               color_map = 'RdPu', ncols = 1, na_in_legend=False, legend_loc='on data',
+               legend_fontsize=10,title='',palette=palette,ax=ax)
+    plt.show()  
+    return adata_all
