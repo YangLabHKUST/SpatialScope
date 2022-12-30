@@ -88,7 +88,7 @@ This step will generate one file:
 ## Reproducibility
 
 We also provide source codes and datasets for reproducing the SpatialScope analysis of the main text in the `demos` directory.
-+ [Human Heart](https://github.com/YangLabHKUST/SpatialScope-Beta/blob/main/demos/Human-Heart.ipynb)
++ [Human Heart](https://github.com/YangLabHKUST/SpatialScope-Beta/blob/master/demos/Human-Heart.ipynb)
 
 
 ## Contact information
