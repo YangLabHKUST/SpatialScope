@@ -1,7 +1,7 @@
 # SpatialScope
 A unified approach for integrating spatial and single-cell transcriptomics data by leveraging deep generative models
 
-![SpatialScope](https://github.com/YangLabHKUST/SpatialScope-Beta/mainfig-flowchat.pdf)
+![SpatialScope](https://github.com/YangLabHKUST/SpatialScope-Beta/mainfig-flowchat.jpg)
 
 ## Installation
 ``` shell
