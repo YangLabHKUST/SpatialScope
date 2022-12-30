@@ -1,7 +1,7 @@
 # SpatialScope
 A unified approach for integrating spatial and single-cell transcriptomics data by leveraging deep generative models
 
-![SpatialScope](https://github.com/YangLabHKUST/SpatialScope-Beta/blob/master/mainfig-flowchat.pdf)
+![SpatialScope](https://github.com/YangLabHKUST/SpatialScope-Beta/mainfig-flowchat.pdf)
 
 ## Installation
 ``` shell
@@ -22,6 +22,7 @@ We illustrate the usage of SpatialScope using 10X Visium human heart data:
 - Image data: ./demo_data/V1_Human_Heart_image.tif
 - scRNA reference data: ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad
 - Checkpoint: ./Ckpts_scRefs/Heart_D2/model_600001.pt
+
 All relevent materials involved in the following example are availabel from [here](https://drive.google.com/drive/folders/1PXv_brtr-tXshBVEd_HSPIagjX9oF7Kg?usp=sharing)
 
 ### Step1: Nuclei segmentation
