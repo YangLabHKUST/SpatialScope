@@ -122,7 +122,7 @@ def PlotVisiumCells(adata,annotation_list,size=0.8,alpha_img=0.3,lw=1,subset=Non
         spine.set_visible(True)
     
 
-def PlotVisiumGene(generated_cells,gene,size=0.8,alpha_img=0.3,perc=0.00,palette='rocket_r', vis_index = None, vis_index_only = None, colorbar_loc='right',title=None,ax=None):
+def PlotVisiumGene(generated_cells,gene,size=0.8,alpha_img=0.3,perc=0.00,palette='rocket_r', vis_index = None, vis_index_0=False, vis_index_only = None, colorbar_loc='right',title=None,ax=None):
     test = generated_cells.copy()
     if not 'spatial' in test.obsm.keys():
         if 'x' in test.obs.columns:
@@ -143,7 +143,10 @@ def PlotVisiumGene(generated_cells,gene,size=0.8,alpha_img=0.3,perc=0.00,palette
     tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
     tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
     if vis_index is not None:
-        tmp[~vis_index] = 0
+        if vis_index_0:
+            tmp[~vis_index] = 0
+        else:
+            tmp[~vis_index] = None
     if vis_index_only is not None:
         test = test[vis_index_only]
         tmp = tmp[vis_index_only]
@@ -282,6 +285,27 @@ def reorder(file1, file2, spot_id_name = 'spot_index', cell_type_colname = 'cell
     return reorder_index
 
 
+def VisualDE(ad_sc,gene,perc=0.02,Sparse=False,title=None):
+    try:
+        tmp = ad_sc[:,ad_sc.var.index==gene].X.toarray().copy()
+    except:
+        tmp = ad_sc[:,ad_sc.var.index==gene].X.copy()
+    tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
+    tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
+    if Sparse:
+        tmp[tmp==0] = -1
+    ad_sc.obs['gene_visual'] = tmp
+    plt.subplots(figsize=(10,8.5))
+    sns.scatterplot(data=ad_sc.obs, x="x", y="y",s=10,hue='gene_visual',palette='rocket_r',legend=False,alpha=0.9)#rocket_r
+    #plt.gca().invert_yaxis()
+    plt.axis('off')
+    if title is None:
+        plt.title('${}$'.format(gene),fontsize=30)
+    else:
+        plt.title(title,fontsize=30)
+    plt.show()
+    
+    
 
 def VisualscDE(ad_sc,gene):
     try:
@@ -455,3 +479,155 @@ def PlotSampledData(gen_sample_adata,sc_data_process,cell_type_key,palette=None,
                legend_fontsize=10,title='',palette=palette,ax=ax)
     plt.show()  
     return adata_all
+
+
+
+
+def plot_genes_sc(
+    genes, 
+    adata_measured, 
+    adata_predicted,
+    x="x",
+    y = "y",
+    spot_size=None, 
+    scale_factor=None, 
+    cmap="inferno", 
+    perc=0,
+    return_figure=False
+):
+    adata_measured = adata_measured.copy()
+    adata_predicted = adata_predicted.copy()
+    # remove df_plot in obs 
+    adata_measured.obs.drop(
+        ["{} (measured)".format(gene) for gene in genes],
+        inplace=True,
+        errors="ignore",
+        axis=1,
+    )
+    adata_predicted.obs.drop(
+        ["{} (predicted)".format(gene) for gene in genes],
+        inplace=True,
+        errors="ignore",
+        axis=1,
+    )
+
+    # prepare adatas
+    convert_adata_array(adata_measured)
+
+    adata_measured.var.index = [g.lower() for g in adata_measured.var.index]
+    adata_predicted.var.index = [g.lower() for g in adata_predicted.var.index]
+
+    adata_predicted.obsm = adata_measured.obsm
+    adata_predicted.uns = adata_measured.uns
+
+    # remove previous df_plot in obs
+    adata_measured.obs.drop(
+        ["{} (measured)".format(gene) for gene in genes],
+        inplace=True,
+        errors="ignore",
+        axis=1,
+    )
+    adata_predicted.obs.drop(
+        ["{} (predicted)".format(gene) for gene in genes],
+        inplace=True,
+        errors="ignore",
+        axis=1,
+    )
+
+    # construct df_plot
+    data = []
+    for ix, gene in enumerate(genes):
+        if gene not in adata_measured.var.index:
+            data.append(np.zeros_like(np.array(adata_measured[:, 0].X).flatten()))
+        else:
+            data.append(np.array(adata_measured[:, gene].X).flatten())
+
+    df = pd.DataFrame(
+        data=np.array(data).T, columns=genes, index=adata_measured.obs.index,
+    )
+    construct_obs_plot(df, adata_measured, suffix="measured")
+
+    df = pd.DataFrame(
+        data=np.array(adata_predicted[:, genes].X),
+        columns=genes,
+        index=adata_predicted.obs.index,
+    )
+    construct_obs_plot(df, adata_predicted, perc=perc, suffix="predicted")
+
+    fig = plt.figure(figsize=(7, len(genes) * 3.5))
+    gs = GridSpec(len(genes), 2, figure=fig)
+    
+    #non visium data
+    if 'spatial' not in adata_measured.obsm.keys():
+        #add spatial coordinates to obsm of spatial data 
+        coords = [[x,y] for x,y in zip(adata_measured.obs[x].values,adata_measured.obs[y].values)]
+        adata_measured.obsm['spatial'] = np.array(coords)
+        coords = [[x,y] for x,y in zip(adata_predicted.obs[x].values,adata_predicted.obs[y].values)]
+        adata_predicted.obsm['spatial'] = np.array(coords)
+
+    if ("spatial" not in adata_measured.uns.keys()) and (spot_size==None and scale_factor==None):
+        raise ValueError("Spot Size and Scale Factor cannot be None when ad_sp.uns['spatial'] does not exist")
+        
+    for ix, gene in enumerate(genes):
+        ax_m = fig.add_subplot(gs[ix, 0])
+        sc.pl.spatial(
+            adata_measured,
+            spot_size=spot_size,
+            scale_factor=scale_factor,
+            color=["{} (measured)".format(gene)],
+            frameon=False,
+            ax=ax_m,
+            show=False,
+            cmap=cmap,
+            title="{} (measured)".format(gene),colorbar_loc=None
+        )
+        ax_p = fig.add_subplot(gs[ix, 1])
+        sc.pl.spatial(
+            adata_predicted,
+            spot_size=spot_size,
+            scale_factor=scale_factor,
+            color=["{} (predicted)".format(gene)],
+            frameon=False,
+            ax=ax_p,
+            show=False,
+            cmap=cmap,
+            title='Predicted',colorbar_loc=None
+        )
+        
+    #     sc.pl.spatial(adata_measured, color=['{} (measured)'.format(gene) for gene in genes], frameon=False)
+    #     sc.pl.spatial(adata_predicted, color=['{} (predicted)'.format(gene) for gene in genes], frameon=False)
+    fig.tight_layout()#(pad=.8)
+    # remove df_plot in obs
+    adata_measured.obs.drop(
+        ["{} (measured)".format(gene) for gene in genes],
+        inplace=True,
+        errors="ignore",
+        axis=1,
+    )
+    adata_predicted.obs.drop(
+        ["{} (predicted)".format(gene) for gene in genes],
+        inplace=True,
+        errors="ignore",
+        axis=1,
+    )
+    if return_figure==True:
+        return fig
+
+def convert_adata_array(adata):
+    if isinstance(adata.X, csc_matrix) or isinstance(adata.X, csr_matrix):
+        adata.X = adata.X.toarray()
+        
+def construct_obs_plot(df_plot, adata, perc=0, suffix=None):
+    # clip
+    df_plot = df_plot.clip(df_plot.quantile(perc), df_plot.quantile(1 - perc), axis=1)
+
+    # normalize
+    df_plot = (df_plot - df_plot.min()) / (df_plot.max() - df_plot.min())
+
+    if suffix:
+        df_plot = df_plot.add_suffix(" ({})".format(suffix))
+    adata.obs = pd.concat([adata.obs, df_plot], axis=1)
+
+from scipy.sparse.csc import csc_matrix
+from scipy.sparse.csr import csr_matrix
+from matplotlib.gridspec import GridSpec

@@ -117,6 +117,9 @@ class GeneExpDecomposition:
         if isinstance(spatial_adata.X, scipy.sparse.csr_matrix):
             spatial_adata.X = spatial_adata.X.toarray()
 
+        if spatial_adata.X.max()<30:
+            sp_adata.X = np.exp(sp_adata.X) - 1
+                
         if self.config.decomposition.test_genes is not None:
             test_gene = np.array(self.config.decomposition.test_genes)
         
@@ -135,6 +138,7 @@ class GeneExpDecomposition:
         
         # meke gene mask
         if self.config.decomposition.leave_out_test:
+            self.loggings.info('Leave testing genes out: {}'.format(','.join(test_gene)))
             gene_index1 = self.sc_data_process_marker.var.index.isin(spatial_adata.var.index)
             gene_index2 = self.sc_data_process_marker.var.index.isin(test_gene)
             self.gene_mask = (gene_index1) & (~gene_index2)
@@ -146,7 +150,7 @@ class GeneExpDecomposition:
 
         
     def single_decomposition(self, rep_No = 0):
-        self.CellTypeLabel = pd.read_csv(os.path.join(self.out_dir, 'CellTypeLabel_nu_' + str(self.config.CTI.nu) + '.csv'), index_col = 0)
+        self.CellTypeLabel = self.spatial_adata_reorder.uns['cell_locations']
         sp_index = np.array(KeepOrderUnique(self.CellTypeLabel['spot_index']))
         self.spatial_adata_reorder = self.spatial_adata_reorder[sp_index,:]
 
@@ -197,8 +201,7 @@ class GeneExpDecomposition:
             if l > 0:
                 x_decom[nan_list] = x_decom0.squeeze()
                 self.loggings.info('######################################################## iter:{} | nan list: {}'.format(l, nan_list))
-
-
+            
             nan_list = np.where(np.isnan(x_decom)==True)[0]
             if nan_list.shape[0] == 0:
                 break  
@@ -234,12 +237,9 @@ class GeneExpDecomposition:
             os.makedirs(os.path.join(self.out_dir, 'decomposition'))
         if not os.path.exists(os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No))):
             os.makedirs(os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No)))
-        if self.config.decomposition.leave_out_test:
-            x_decom_adata.write(os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No),  spot_range + '_noMarker' + '_Sig' + str(self.config.decomposition.power) + '_' + str(self.config.sigma.step_lr_decom) + '.h5ad'))
-        else:
-            x_decom_adata.write(os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No),  spot_range + '_Sig' + str(self.config.decomposition.power) + '_' + str(self.config.sigma.step_lr_decom) + '.h5ad'))
-            if self.config.decomposition.save_process:
-                np.save(os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No),  spot_range + '_Sig' + str(self.config.decomposition.power) + '_' + str(self.config.sigma.step_lr_decom) + '_' + 'median_samples.npy'), np.array(collected_samples))
+        x_decom_adata.write(os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No),  spot_range + '_Sig' + str(self.config.decomposition.power) + '_Lr' + str(self.config.sigma.step_lr_decom) + '.h5ad'))
+        if self.config.decomposition.save_process:
+            np.save(os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No),  spot_range + '_Sig' + str(self.config.decomposition.power) + '_Lr' + str(self.config.sigma.step_lr_decom) + '_' + 'median_samples.npy'), np.array(collected_samples))
 
         
     def Langevin_Decom(self, estimated, mu, y, model, mask, cell_num_total, subspot_ids, gene_mask):
@@ -309,32 +309,34 @@ class GeneExpDecomposition:
             x_decom = x_decom.to('cpu')
             mu = mu.to('cpu')
             y = y.to('cpu')
-        if self.config.decomposition.leave_out_test:
+        if self.config.decomposition.save_process:
             return x_decom, collected_sample
         else:
             return x_decom
 
 
         
-        
-    def posterior_mean(self, s, e, inter, es, suffix='_Sig1.0_1e-05.h5ad'):
-        self.CellTypeLabel = pd.read_csv(os.path.join(self.out_dir, 'CellTypeLabel_nu_' + str(self.config.CTI.nu) + '.csv'), index_col = 0)
+    def posterior_mean(self):
+        self.CellTypeLabel = self.spatial_adata_reorder.uns['cell_locations']
         sp_index = np.array(KeepOrderUnique(self.CellTypeLabel['spot_index']))
         # decomposition specific spot
         sp_index_table = pd.DataFrame(np.arange(sp_index.shape[0]),index = sp_index)
 
         spot_label = np.arange(sp_index_table.shape[0])
         subspot_label = sp_index_table.loc[self.CellTypeLabel['spot_index'].values].values.squeeze()
-        index = (subspot_label >= s) & (subspot_label < es)
+        index = (subspot_label >= self.spot_range[0]) & (subspot_label < self.spot_range[1])
         
+        separator = '_'
+        spot_range = separator.join(str(e) for e in self.spot_range)
         
         cell_files = []
         reorder_index_all = []
-        cell_file = ConcatCells(s = s, e = e, inter = inter, es = es, file_path = os.path.join(self.out_dir, 'decomposition', 'rep' + str(0)), suffix=suffix)
+        cell_file = sc.read(os.path.join(self.out_dir, 'decomposition', 'rep0',  spot_range + '_Sig' + str(self.config.decomposition.power) + '_Lr' + str(self.config.sigma.step_lr_decom) + '.h5ad'))
+        
         cell_files.append(cell_file)
         reorder_index_all.append(np.arange(cell_file.shape[0]).astype(int))
         for rep_No in np.arange(1,self.config.decomposition.replicates):
-            cells = ConcatCells(s = s, e = e, inter = inter, es = es, file_path = os.path.join(self.out_dir, 'decomposition', 'rep' + str(rep_No)), suffix=suffix)
+            cells = sc.read(os.path.join(self.out_dir, 'decomposition', f'rep{rep_No}',  spot_range + '_Sig' + str(self.config.decomposition.power) + '_Lr' + str(self.config.sigma.step_lr_decom) + '.h5ad'))
             cell_files.append(cells)
             reorder_index_all.append(reorder(cell_file, cells))
 
@@ -351,8 +353,8 @@ class GeneExpDecomposition:
         mean_express = pd.DataFrame(data = mean_express, index = cell_file.to_df().index, columns = cell_file.to_df().columns)
 
         x_decom_adata = sc.AnnData(mean_express.reset_index(drop=True), obs=self.CellTypeLabel.loc[index,:])
-        x_decom_adata.write(os.path.join(self.out_dir,  'generated_cells_spot{}.h5ad'.format('-'.join(str(_) for _ in self.spot_range))))
-        self.loggings.info('save generated single-cell resolution ST data at: {}'.format(os.path.join(self.out_dir, 'generated_cells_spot{}.h5ad'.format('-'.join(str(_) for _ in self.spot_range)))))
+        x_decom_adata.write(os.path.join(self.out_dir,  'generated_cells_spot{}.h5ad'.format('_'.join(str(_) for _ in self.spot_range))))
+        self.loggings.info('save generated single-cell resolution ST data at: {}'.format(os.path.join(self.out_dir, 'generated_cells_spot{}.h5ad'.format('_'.join(str(_) for _ in self.spot_range)))))
         
         
     def decomposition(self):
@@ -395,7 +397,6 @@ if __name__ == "__main__":
     parser.add_argument('--tissue', type=str, help='tissue name', default=None)
     parser.add_argument('--out_dir', type=str, help='output path, shuold be identical to --out_dir in Cell_Type_Identification.py', default=None)
     parser.add_argument('--SC_Data', type=str, help='single cell reference data path', default=None)
-    parser.add_argument('--nu', type=int, help='spatial prior parameter, higher nu means stronger spatial prior', default=10)
     parser.add_argument('--ckpt_path', type=str, help='checkpoint file', default=None) 
     parser.add_argument('--spot_range', type=str, help='limited by GPU memory, we can only handle at most about 1000 spots in 4 GPUs at a time. \
                         e.g., 0,1000 means 0 to 1000-th spot', default=None) #[0,10]
@@ -403,7 +404,7 @@ if __name__ == "__main__":
     
     parser.add_argument('--leave_out_test', action="store_true", help='leave some genes out as test') 
     parser.add_argument('--test_genes', type=str, help='test genes names, seperated by coma', default=None) # 'MYH11,ACTA2,JAG1'
-    parser.add_argument('--replicates', type=int, help='perform decomposition with multiple replicates for robustness', default=2)
+    parser.add_argument('--replicates', type=int, help='perform decomposition with multiple replicates for robustness', default=3)
     parser.add_argument('--power', type=float, help='power of sigma', default=1)
     parser.add_argument('--save_process', action="store_true", help='save snapshots of decomposition process') 
     parser.add_argument('--verbose', action="store_true", help='print out some values in the process of decomposition, used for tuning sigma power') 
@@ -419,10 +420,7 @@ if __name__ == "__main__":
     config.data.tissue = args.tissue
     config.data.out_dir = args.out_dir
     config.data.SC_Data = args.SC_Data
-    
-    config.CTI = ConfigWrapper()
-    config.CTI.nu = args.nu
-    
+        
     config.decomposition = ConfigWrapper()
     config.decomposition.leave_out_test = args.leave_out_test
     config.decomposition.test_genes = args.test_genes.split(',') if args.test_genes is not None else args.test_genes
@@ -444,4 +442,4 @@ if __name__ == "__main__":
         
     DECOM = GeneExpDecomposition(config)
     DECOM.decomposition()
-    DECOM.posterior_mean(s = DECOM.spot_range[0], e = DECOM.spot_range[1], inter = DECOM.spot_range[1], es = DECOM.spot_range[1], suffix='_Sig' + str(DECOM.config.decomposition.power) + '_' + str(DECOM.config.sigma.step_lr_decom) + '.h5ad')
+    DECOM.posterior_mean()

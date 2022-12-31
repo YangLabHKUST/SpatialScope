@@ -38,6 +38,35 @@ def KeepOrderUnique(seq):
     seen_add = seen.add
     return [x for x in seq if not (x in seen or seen_add(x))]
 
+def SlideseqP2Parser(p2_res):
+    p2_res = p2_res.loc[p2_res['spot_class']!='reject']
+    p2_res = p2_res.reset_index()
+    p2_res.columns = ['spot_index']+p2_res.columns.tolist()[1:]
+    p2_res_single = p2_res.loc[p2_res['spot_class']=='singlet']
+    p2_res_single['cell_nums'] = 1
+    p2_res_single['cell_index'] = p2_res_single['spot_index'].map(lambda x:x+'_0')
+    p2_res_single['cell_index_n'] = '0'
+    p2_res_single['cell_type'] = p2_res_single.apply(lambda x:x['first_type'] if x['first_type_weight']>x['second_type_weight'] else x['second_type'], axis=1)
+    p2_res_double = p2_res.loc[p2_res['spot_class']!='singlet']
+    p2_res_double['cell_nums'] = 2
+    #offset = (np.linalg.norm((p2_res[['x','y']].values[1:]-p2_res[['x','y']].values[0]),axis=1).min()**2/2)**.5/10
+    offset=0
+    for row in p2_res_double.iterrows():
+        for i in range(2):
+            if i==0:
+                row[1]['x'] -= offset/2
+            else:
+                row[1]['x'] += offset
+            row[1]['cell_index'] = row[1]['spot_index']+'_{}'.format(i)
+            row[1]['cell_index_n'] = str(i)
+            if i==0:
+                row[1]['cell_type'] = row[1]['first_type']
+            else:
+                row[1]['cell_type'] = row[1]['second_type']
+            p2_res_single = p2_res_single.append(row[1])
+    return p2_res_single.reset_index(drop=True)
+
+
 
 @ray.remote
 def UpdateCellLabel(args):
@@ -107,7 +136,7 @@ def UpdateCellLabel(args):
     return index,init[index]
 
 
-def SingleCellTypeIdentification(InitProp, cell_locations, spot_index_name, Q_mat_all, X_vals_loc, nu = 0, n_epoch = 8, n_neighbo=10, loggings = None, slideseq = False):
+def SingleCellTypeIdentification(InitProp, cell_locations, spot_index_name, Q_mat_all, X_vals_loc, nu = 0, n_epoch = 8, n_neighbo=10, loggings = None, hs_ST = False):
     
     global df_j,com,init,signature_matrix,cell_type_names,likelihood_vars
     
@@ -120,12 +149,17 @@ def SingleCellTypeIdentification(InitProp, cell_locations, spot_index_name, Q_ma
     sp_index = np.array(KeepOrderUnique(cell_locations[spot_index_name]))
     sp_index_table = pd.DataFrame(np.arange(sp_index.shape[0]),index = sp_index)
 
-    if slideseq:
-        weights = InitProp['results']['weights'].loc[sp_index].values
+    if hs_ST:
+        try:
+            weights = InitProp['results']['weights'].loc[sp_index].values
+            cell_type_names = InitProp['results']['weights'].columns.values
+        except:
+            weights = InitProp['results'].loc[sp_index].values
+            cell_type_names = InitProp['results'].columns.values
     else:
         weights = InitProp['results'].loc[sp_index].values
+        cell_type_names = InitProp['results'].columns.values
     
-    cell_type_names = InitProp['results'].columns.values
     alpha = weights.sum(1)
     spot_label = sp_index_table.loc[cell_locations[spot_index_name].values].values.squeeze()
     nUMI = InitProp['spatialRNA']['nUMI'].loc[sp_index].values.squeeze()
@@ -207,8 +241,11 @@ def SingleCellTypeIdentification(InitProp, cell_locations, spot_index_name, Q_ma
     InitProp['internal_vars']['X_vals'] = likelihood_vars['X_vals']
     cell_locations['discrete_label'] = init
     InitProp['discrete_label'] = cell_locations
-    if slideseq:
-        InitProp['label2ct'] = pd.DataFrame(InitProp['results']['weights'].columns, index = np.arange(InitProp['results']['weights'].shape[1]))
+    if hs_ST:
+        try:
+            InitProp['label2ct'] = pd.DataFrame(InitProp['results']['weights'].columns, index = np.arange(InitProp['results']['weights'].shape[1]))
+        except:
+            InitProp['label2ct'] = pd.DataFrame(InitProp['results'].columns, index = np.arange(InitProp['results'].shape[1]))
     else:
         InitProp['label2ct'] = pd.DataFrame(InitProp['results'].columns, index = np.arange(InitProp['results'].shape[1]))
 

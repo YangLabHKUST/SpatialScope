@@ -70,36 +70,53 @@ class SpatialScopeCTI:
 
         # cell_class_column = args.cell_class_column
 
-
+        if sp_adata.X.max()<30:
+            try:
+                sp_adata.X = np.exp(sp_adata.X) - 1
+            except:
+                sp_adata.X = np.exp(sp_adata.X.toarray()) - 1
+        
         if sc_adata.X.max()<30:
             try:
                 sc_adata.X = np.exp(sc_adata.X) - 1
-            #     sc.pp.normalize_total(sc_adata, inplace=True)
             except:
                 sc_adata.X = np.exp(sc_adata.X.toarray()) - 1
-            #     sc.pp.normalize_total(sc_adata, inplace=True)
+            sc.pp.normalize_total(sc_adata, inplace=True)
             
         self.sp_adata = sp_adata
         self.sc_adata = sc_adata
         self.cell_class_column = cell_class_column
         
         
-    def WarmStart(self, loc = 'spatial', X = None, Y = None):
+    def WarmStart(self,hs_ST):
         self.LoadLikelihoodTable()
         
-        
         counts = self.sp_adata.to_df().T
-        if loc == 'spatial':
-            coords = pd.DataFrame(self.sp_adata.obsm['spatial'], index = counts.columns, columns = ['x', 'y'])
-        elif loc == 'obs':
-            coords = self.sp_adata.obs.loc[:, [X,Y]]
+        if hs_ST:
+            UMI_min = 20
+            if 'z' in self.sp_adata.obs.columns:
+                coords = self.sp_adata.obs[['x', 'y', 'z']]
+            else:
+                coords = self.sp_adata.obs[['x', 'y']]
+        else:
+            UMI_min =100
+            if self.sp_adata.obsm['spatial'].shape[1] == 2:
+                coords = pd.DataFrame(self.sp_adata.obsm['spatial'], index = counts.columns, columns = ['x', 'y'])
+                self.loggings.info('A single ST data with spatial location shape: {}'.format(self.sp_adata.obsm['spatial'].shape))
+            elif self.sp_adata.obsm['spatial'].shape[1] == 3:
+                coords = pd.DataFrame(self.sp_adata.obsm['spatial'], index = counts.columns, columns = ['x', 'y', 'z'])
+                self.loggings.info('3D aligned ST data with spatial location shape: {}'.format(self.sp_adata.obsm['spatial'].shape))
+            else:
+                self.loggings.error('Wrong spatial location shape: {}'.format(self.sp_adata.obsm['spatial'].shape))
+                sys.exit()
+
         nUMI = pd.DataFrame(np.array(self.sp_adata.X.sum(-1)), index = self.sp_adata.obs.index)
         puck = SpatialRNA(coords, counts, nUMI)
         counts = self.sc_adata.to_df().T
         cell_types = pd.DataFrame(self.sc_adata.obs[self.cell_class_column])
         nUMI = pd.DataFrame(self.sc_adata.to_df().T.sum(0))
         reference = Reference(counts, cell_types, nUMI)
-        myRCTD = create_RCTD(puck, reference, max_cores = 22, loggings = self.loggings)
+        myRCTD = create_RCTD(puck, reference, max_cores = 22, UMI_min=UMI_min, loggings = self.loggings)
         myRCTD = run_RCTD(myRCTD, self.Q_mat_all, self.X_vals_loc, loggings = self.loggings)
         self.InitProp = myRCTD
         import pickle
@@ -141,42 +158,57 @@ class SpatialScopeCTI:
         self.Q_mat_all = Q_mat_all
         self.X_vals_loc = X_vals_loc
         
-    def CellTypeIdentification(self, nu = 10, loc = 'spatial', X = None, Y = None):
+    def CellTypeIdentification(self, nu = 10, hs_ST = False):
         cell_locations = self.sp_adata.uns['cell_locations'].copy()
         if self.InitProp is None and not os.path.exists(os.path.join(self.out_dir, 'InitProp.pickle')):
-            self.WarmStart(loc = loc, X = X, Y = Y)
+            self.WarmStart(hs_ST=hs_ST)
         elif self.InitProp is None and os.path.exists(os.path.join(self.out_dir, 'InitProp.pickle')):
+            self.loggings.info('Loading existing InitProp, no need to warmstart')
             with open(os.path.join(self.out_dir, 'InitProp.pickle'), 'rb') as handle:
                 self.InitProp = pickle.load(handle)
                 self.LoadLikelihoodTable()
             
-        if not os.path.exists(os.path.join(self.out_dir, 'CellTypeLabel_nu_' + str(nu) + '.csv')):
-            CellTypeLabel = SingleCellTypeIdentification(self.InitProp, cell_locations, 'spot_index', self.Q_mat_all, self.X_vals_loc, nu = nu, n_epoch = 8, loggings = self.loggings)
-            label2ct = CellTypeLabel['label2ct']
-            discrete_label = CellTypeLabel['discrete_label'].copy()
-            discrete_label['discrete_label_ct'] = label2ct.iloc[discrete_label['discrete_label']].values.squeeze()
-            discrete_label.to_csv(os.path.join(self.out_dir, 'CellTypeLabel_nu_' + str(nu) + '.csv'))
+        CellTypeLabel = SingleCellTypeIdentification(self.InitProp, cell_locations, 'spot_index', self.Q_mat_all, self.X_vals_loc, nu = nu, n_epoch = 8, loggings = self.loggings, hs_ST = hs_ST)
+        label2ct = CellTypeLabel['label2ct']
+        discrete_label = CellTypeLabel['discrete_label'].copy()
+        discrete_label['discrete_label_ct'] = label2ct.iloc[discrete_label['discrete_label']].values.squeeze()
+        discrete_label.to_csv(os.path.join(self.out_dir, 'CellTypeLabel_nu' + str(nu) + '.csv'))
+        self.sp_adata.uns['cell_locations'] = discrete_label
 
-            # with mpl.rc_context({'figure.figsize': (10, 10)}):
-            #     ax = sns.scatterplot(data=discrete_label, x="x", y="y", hue="discrete_label_ct", s = 30, legend = False)
-            #     plt.savefig(os.path.join(self.out_dir, 'estemated_ct_label1.png'))
-            #     plt.close()
-                
-            self.sp_adata.uns['cell_locations'] = discrete_label
-            fig, ax = plt.subplots(1,1,figsize=(14, 8),dpi=200)
-            PlotVisiumCells(self.sp_adata,"discrete_label_ct",size=0.4,alpha_img=0.4,lw=0.4,palette='tab20',ax=ax)
+        if hs_ST:
+            fig, ax = plt.subplots(figsize=(10,8.5),dpi=100)
+            sns.scatterplot(data=discrete_label, x="x",y="y",s=10,hue='discrete_label_ct',palette='tab20',legend=True)
+            plt.axis('off')
+            plt.legend(bbox_to_anchor=(0.97, .98),framealpha=0)
             plt.savefig(os.path.join(self.out_dir, 'estemated_ct_label.png'))
             plt.close()
+        
+        else:
+            if self.sp_adata.obsm['spatial'].shape[1] == 2:
+                fig, ax = plt.subplots(1,1,figsize=(14, 8),dpi=200)
+                PlotVisiumCells(self.sp_adata,"discrete_label_ct",size=0.4,alpha_img=0.4,lw=0.4,palette='tab20',ax=ax)
+                plt.savefig(os.path.join(self.out_dir, 'estemated_ct_label.png'))
+                plt.close()
                 
         # estimate platform batch effect
         add_genes = np.array(self.sp_adata.var.index[self.sp_adata.var.index.isin(self.sc_adata.var.index)])
         self.sp_adata_be = self.sp_adata[:,add_genes].copy()
 
         counts = self.sp_adata_be.to_df().T
-        if loc == 'spatial':
-            coords = pd.DataFrame(self.sp_adata.obsm['spatial'], index = counts.columns, columns = ['x', 'y'])
-        elif loc == 'obs':
-            coords = self.sp_adata.obs.loc[:, [X,Y]]
+        
+        if hs_ST:
+            if 'z' in self.sp_adata.obs.columns:
+                coords = self.sp_adata.obs[['x', 'y', 'z']]
+            else:
+                coords = self.sp_adata.obs[['x', 'y']]
+        else:
+            if self.sp_adata.obsm['spatial'].shape[1] == 2:
+                coords = pd.DataFrame(self.sp_adata.obsm['spatial'], index = counts.columns, columns = ['x', 'y'])
+            elif self.sp_adata.obsm['spatial'].shape[1] == 3:
+                coords = pd.DataFrame(self.sp_adata.obsm['spatial'], index = counts.columns, columns = ['x', 'y', 'z'])
+            else:
+                self.loggings.error('Wrong spatial location shape: {}'.format(self.sp_adata.obsm['spatial'].shape))
+                sys.exit()
         nUMI = pd.DataFrame(np.array(self.sp_adata_be.X.sum(-1)), index = self.sp_adata_be.obs.index)
         puck = SpatialRNA(coords, counts, nUMI)
         counts = self.sc_adata.to_df().T
@@ -223,7 +255,6 @@ class SpatialScopeCTI:
             
 
 
-
 if __name__ == "__main__":
     HEADER = """
     <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
@@ -235,27 +266,24 @@ if __name__ == "__main__":
     <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     <> Software-related correspondence: %s or %s
     <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-    <> example:
+    <> Visium data example:
         python <install path>/src/Cell_Type_Identification.py \\
             --cell_class_column cell_type \\
             --tissue heart \\
             --out_dir ./output \\
             --ST_Data ./output/heart/sp_adata_ns.h5ad \\
             --SC_Data ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad 
-
     <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>  
     """ 
     
     parser = argparse.ArgumentParser(description='simulation sour_sep')
     parser.add_argument('--tissue', type=str, help='tissue name', default=None)
     parser.add_argument('--out_dir', type=str, help='output path', default=None)
-    parser.add_argument('--nu', type=float, help='spatial prior parameter, higher nu means stronger spatial prior', default=10)
+    parser.add_argument('--nu', type=int, help='spatial prior parameter, higher nu means stronger spatial prior', default=10)
     parser.add_argument('--ST_Data', type=str, help='ST data path', default=None)
     parser.add_argument('--SC_Data', type=str, help='single cell reference data path', default=None)
-    parser.add_argument('--cell_class_column', type=str, help='input cell class label column in scRef file', default = 'cell_type')
-    parser.add_argument('--location', type=str, help='spatial data location, e.g., .obsm[\'spatial\'] for Visum data', default='spatial')
-    parser.add_argument('--X', type=str, help='spatial data location X', default='x')
-    parser.add_argument('--Y', type=str, help='spatial data location Y', default='y')
+    parser.add_argument('--cell_class_column', type=str, help='input cell class label column in scRef file', default = 'cell_type')    
+    parser.add_argument('--hs_ST', action="store_true", help='high resolution ST data such as Slideseq, DBiT-seq, and HDST, MERFISH etc.')
 
     args = parser.parse_args()
 
@@ -266,4 +294,4 @@ if __name__ == "__main__":
 
 
     CTI = SpatialScopeCTI(args.tissue,args.out_dir, args.ST_Data, args.SC_Data, cell_class_column = args.cell_class_column)
-    CTI.CellTypeIdentification(nu = args.nu, loc = args.location, X = args.X, Y = args.Y)
+    CTI.CellTypeIdentification(nu = args.nu, hs_ST = args.hs_ST)
