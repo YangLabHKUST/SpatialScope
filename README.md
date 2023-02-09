@@ -3,6 +3,8 @@ A unified approach for integrating spatial and single-cell transcriptomics data 
 
 ![SpatialScope](https://github.com/YangLabHKUST/SpatialScope/blob/master/mainfig-flowchat.jpg)
 
+Visit our [documentation](https://spatialscope-tutorial.readthedocs.io/en/latest/) for installation, tutorials, examples and more.
+
 ## Installation
 ``` shell
 $ git clone https://github.com/YangLabHKUST/SpatialScope.git
