@@ -51,7 +51,7 @@ Input:
 - --out_dir: output directory
 - --tissue: output sub-directory
 - --ST_Data: ST data file path
-- --Img_Data: H&E stained image data file path (require raw H&E image with high resolution, about 10000x10000 resolution)
+- --Img_Data: H&E stained image data file path (require **raw** H&E image with high resolution, about **10000x10000** resolution, **500M** file size)
 
 This step will make `./output/heart` directory, and generate two files:
 
