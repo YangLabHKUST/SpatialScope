@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import argparse
 import anndata
 import pandas as pd
+from PIL import Image 
+Image.MAX_IMAGE_PIXELS = 1000000000 
 from utils import *
 
 
