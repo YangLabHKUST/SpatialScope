@@ -13,11 +13,12 @@ from utils import *
 
     
 class SpatialScopeNS:
-    def __init__(self,tissue,out_dir,ST_Data,Img_Data):
+    def __init__(self,tissue,out_dir,ST_Data,Img_Data,prob_thresh):
         self.tissue = tissue
         self.out_dir = out_dir 
         self.ST_Data = ST_Data
         self.Img_Data = Img_Data
+        self.prob_thresh = prob_thresh
         if not os.path.exists(out_dir):
             os.mkdir(out_dir)
         if not os.path.exists(os.path.join(out_dir,tissue)):
@@ -81,7 +82,7 @@ class SpatialScopeNS:
             channel=None,
             method=self.stardist_2D_versatile_he,
             layer_added='segmented_stardist_default',
-            prob_thresh=0.5)
+            prob_thresh=self.prob_thresh)
         self.loggings.info(f"Number of segments: {len(np.unique(self.image['segmented_stardist_default']))}")
         
         # define image layer to use for segmentation
@@ -150,9 +151,10 @@ if __name__ == "__main__":
     parser.add_argument('--out_dir', type=str, help='output path', default=None)
     parser.add_argument('--ST_Data', type=str, help='ST data path', default=None)
     parser.add_argument('--Img_Data', type=str, help='H&E stained image data path', default=None)
+    parser.add_argument('--prob_thresh', type=float, help='object probability threshold', default=0.5)
     args = parser.parse_args()
     
-    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data)
+    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh)
     NS.NucleiSegmentation()
     
 

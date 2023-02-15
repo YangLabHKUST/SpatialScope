@@ -433,7 +433,10 @@ def GenerateCellTypeProportion(ss_res):
 def PlotSampledData(gen_sample_adata,sc_data_process,cell_type_key,palette=None,scale=True):   
     gen_sample_adata = gen_sample_adata.copy()
     sc_data_process = sc_data_process.copy()
-    sc_data_process_marker = sc_data_process[:,sc_data_process.var['Marker']]
+    if 'Marker' in sc_data_process.var.columns:
+        sc_data_process_marker = sc_data_process[:,sc_data_process.var['Marker']]
+    else:
+        sc_data_process_marker = sc_data_process
     if sc_data_process_marker.X.max()>30:
         print(f'Maximum value: {sc_data_process_marker.X.max()}, need to run log1p')
         sc.pp.log1p(sc_data_process_marker)
