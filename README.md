@@ -36,7 +36,7 @@ We illustrate the usage of SpatialScope using a single slice of 10x Visium human
 - Spatial data: ./demo_data/V1_Human_Heart_spatial.h5ad
 - Image data: ./demo_data/V1_Human_Heart_image.tif
 - scRNA reference data: ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad
-- Pretrained model checkpoint: ./Ckpts_scRefs/Heart_D2/model_600001.pt
+- Pretrained model checkpoint: ./Ckpts_scRefs/Heart_D2/model_5000.pt
 
 All relevent materials involved in the following example are availabel from [here](https://drive.google.com/drive/folders/1PXv_brtr-tXshBVEd_HSPIagjX9oF7Kg?usp=sharing)
 
@@ -82,7 +82,7 @@ This step will generate three files:
 ### Step3: Gene expression decomposition
 
 ```
-python ./src/Decomposition.py --tissue heart --out_dir  ./output --SC_Data ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad --cell_class_column cell_type  --ckpt_path ./Ckpts_scRefs/Heart_D2/model_600001.pt --spot_range 0,100 --gpu 0,1,2,3
+python ./src/Decomposition.py --tissue heart --out_dir  ./output --SC_Data ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad --cell_class_column cell_type  --ckpt_path ./Ckpts_scRefs/Heart_D2/model_5000.pt --spot_range 0,100 --gpu 0,1,2,3
 ```
 
 Input:
