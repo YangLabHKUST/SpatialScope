@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_cell_number', type=int, help='maximum cell number per spot', default=20)
     args = parser.parse_args()
     
-    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh, self.max_cell_number)
+    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh, args.max_cell_number)
     NS.NucleiSegmentation()
     
 
