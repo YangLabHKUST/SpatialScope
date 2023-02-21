@@ -13,12 +13,13 @@ from utils import *
 
     
 class SpatialScopeNS:
-    def __init__(self,tissue,out_dir,ST_Data,Img_Data,prob_thresh):
+    def __init__(self,tissue,out_dir,ST_Data,Img_Data,prob_thresh,max_cell_number):
         self.tissue = tissue
         self.out_dir = out_dir 
         self.ST_Data = ST_Data
         self.Img_Data = Img_Data
         self.prob_thresh = prob_thresh
+        self.max_cell_number = max_cell_number
         if not os.path.exists(out_dir):
             os.mkdir(out_dir)
         if not os.path.exists(os.path.join(out_dir,tissue)):
@@ -63,15 +64,17 @@ class SpatialScopeNS:
 
     
     @staticmethod
-    def DissectSegRes(df):
+    def DissectSegRes(df,max_cell_number):
         tmps = []
         for row in df.iterrows():
             if row[1]['segmentation_label'] == 0:
                 continue
-            for idx,i in enumerate(row[1]['segmentation_centroid']):
-                tmps.append(list(i)+[row[0],row[0]+'_{}'.format(idx),row[1]['segmentation_label']])
-        return pd.DataFrame(tmps,columns=['x','y','spot_index','cell_index','cell_nums'])  
-
+            for idx,i in enumerate(row[1]['segmentation_centroid'][:max_cell_number]):
+                if row[1]['segmentation_label']<=max_cell_number:
+                    tmps.append(list(i)+[row[0],row[0]+'_{}'.format(idx),row[1]['segmentation_label']])
+                else:
+                    tmps.append(list(i)+[row[0],row[0]+'_{}'.format(idx),max_cell_number])
+        return pd.DataFrame(tmps,columns=['x','y','spot_index','cell_index','cell_nums'])    
         
     def NucleiSegmentation(self):
         os.environ["CUDA_VISIBLE_DEVICES"] = ''
@@ -118,7 +121,7 @@ class SpatialScopeNS:
         plt.close()
         
         
-        self.sp_adata.uns['cell_locations'] = self.DissectSegRes(self.sp_adata.obsm['image_features'])
+        self.sp_adata.uns['cell_locations'] = self.DissectSegRes(self.sp_adata.obsm['image_features'],self.max_cell_number)
         self.sp_adata.obsm['image_features']['segmentation_centroid'] = self.sp_adata.obsm['image_features']['segmentation_centroid'].astype(str)
         
         self.sp_adata.write_h5ad(os.path.join(self.out_dir, 'sp_adata_ns.h5ad'))
@@ -152,9 +155,10 @@ if __name__ == "__main__":
     parser.add_argument('--ST_Data', type=str, help='ST data path', default=None)
     parser.add_argument('--Img_Data', type=str, help='H&E stained image data path', default=None)
     parser.add_argument('--prob_thresh', type=float, help='object probability threshold', default=0.5)
+    parser.add_argument('--max_cell_number', type=int, help='maximum cell number per spot', default=20)
     args = parser.parse_args()
     
-    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh)
+    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh, self.max_cell_number)
     NS.NucleiSegmentation()
     
 
