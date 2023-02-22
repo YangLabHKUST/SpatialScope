@@ -114,7 +114,7 @@ class SpatialScopeNS:
                 df_cells.loc[row[0],'segmentation_centroid'] = row[1]['segmentation_centroid'][:self.max_cell_number]
         self.sp_adata.obsm['image_features'] = df_cells
         
-        self.sp_adata.obs["cell_count"] = self.sp_adata.obsm["image_features"]["segmentation_label"]
+        self.sp_adata.obs["cell_count"] = self.sp_adata.obsm["image_features"]["segmentation_label"].astype(int)
         
         fig, axes = plt.subplots(1, 3,figsize=(30,9),dpi=100)
         self.image.show("image", ax=axes[0])
