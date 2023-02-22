@@ -128,6 +128,7 @@ class SpatialScopeNS:
         
         
         self.sp_adata.uns['cell_locations'] = self.DissectSegRes(self.sp_adata.obsm['image_features'])
+        self.sp_adata.obsm['image_features']['segmentation_label'] = self.sp_adata.obsm['image_features']['segmentation_label'].astype(int)
         self.sp_adata.obsm['image_features']['segmentation_centroid'] = self.sp_adata.obsm['image_features']['segmentation_centroid'].astype(str)
         
         self.sp_adata.write_h5ad(os.path.join(self.out_dir, 'sp_adata_ns.h5ad'))
