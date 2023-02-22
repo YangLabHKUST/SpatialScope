@@ -64,17 +64,16 @@ class SpatialScopeNS:
 
     
     @staticmethod
-    def DissectSegRes(df,max_cell_number):
+    def DissectSegRes(df):
         tmps = []
         for row in df.iterrows():
             if row[1]['segmentation_label'] == 0:
                 continue
-            for idx,i in enumerate(row[1]['segmentation_centroid'][:max_cell_number]):
-                if row[1]['segmentation_label']<=max_cell_number:
-                    tmps.append(list(i)+[row[0],row[0]+'_{}'.format(idx),row[1]['segmentation_label']])
-                else:
-                    tmps.append(list(i)+[row[0],row[0]+'_{}'.format(idx),max_cell_number])
-        return pd.DataFrame(tmps,columns=['x','y','spot_index','cell_index','cell_nums'])    
+            for idx,i in enumerate(row[1]['segmentation_centroid']):
+                tmps.append(list(i)+[row[0],row[0]+'_{}'.format(idx),row[1]['segmentation_label']])
+        return pd.DataFrame(tmps,columns=['x','y','spot_index','cell_index','cell_nums'])  
+
+        
         
     def NucleiSegmentation(self):
         os.environ["CUDA_VISIBLE_DEVICES"] = ''
@@ -108,6 +107,13 @@ class SpatialScopeNS:
             mask_circle=True,
         )
         
+        df_cells = self.sp_adata.obsm['image_features'].copy().astype(object)
+        for row in df_cells.iterrows():
+            if row[1]['segmentation_label']>self.max_cell_number:
+                df_cells.loc[row[0],'segmentation_label'] = self.max_cell_number
+                df_cells.loc[row[0],'segmentation_centroid'] = row[1]['segmentation_centroid'][:self.max_cell_number]
+        self.sp_adata.obsm['image_features'] = df_cells
+        
         self.sp_adata.obs["cell_count"] = self.sp_adata.obsm["image_features"]["segmentation_label"]
         
         fig, axes = plt.subplots(1, 3,figsize=(30,9),dpi=100)
@@ -121,7 +127,7 @@ class SpatialScopeNS:
         plt.close()
         
         
-        self.sp_adata.uns['cell_locations'] = self.DissectSegRes(self.sp_adata.obsm['image_features'],self.max_cell_number)
+        self.sp_adata.uns['cell_locations'] = self.DissectSegRes(self.sp_adata.obsm['image_features'])
         self.sp_adata.obsm['image_features']['segmentation_centroid'] = self.sp_adata.obsm['image_features']['segmentation_centroid'].astype(str)
         
         self.sp_adata.write_h5ad(os.path.join(self.out_dir, 'sp_adata_ns.h5ad'))
