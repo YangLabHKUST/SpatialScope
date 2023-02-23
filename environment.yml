@@ -12,8 +12,8 @@ dependencies:
   - tensorflow=2.10.0
   - qpsolvers=2.4.0
   - pytorch=1.12.1
-  - pandas
-  - matplotlib
+  - pandas=1.4.2
+  - matplotlib=3.5.2
   - anndata
   - ipykernel
   - scipy
