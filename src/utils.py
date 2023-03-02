@@ -1,311 +1,22 @@
+import os
+import scanpy as sc
+# import squidpy as sq
+import numpy as np
+import pandas as pd
+import pathlib
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+# import skimage
+import seaborn as sns
+from itertools import chain
+# from stardist.models import StarDist2D
+from csbdeep.utils import normalize
+from anndata import AnnData
+from scipy.spatial.distance import pdist
 import logging
 import sys
-import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-import scanpy as sc
-import os 
-import matplotlib as mpl
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-
-def configure_logging(logger_name):
-    LOG_LEVEL = logging.DEBUG
-    log_filename = logger_name+'.log'
-    importer_logger = logging.getLogger('importer_logger')
-    importer_logger.setLevel(LOG_LEVEL)
-    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s')
-
-    fh = logging.FileHandler(filename=log_filename)
-    fh.setLevel(LOG_LEVEL)
-    fh.setFormatter(formatter)
-    importer_logger.addHandler(fh)
-
-    sh = logging.StreamHandler(sys.stdout)
-    sh.setLevel(LOG_LEVEL)
-    sh.setFormatter(formatter)
-    importer_logger.addHandler(sh)
-    return importer_logger
-
-
-class ConfigWrapper(object):
-    """
-    Wrapper dict class to avoid annoying key dict indexing like:
-    `config.sample_rate` instead of `config["sample_rate"]`.
-    """
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            if type(v) == dict:
-                v = ConfigWrapper(**v)
-            self[k] = v
-      
-    def keys(self):
-        return self.__dict__.keys()
-
-    def items(self):
-        return self.__dict__.items()
-
-    def values(self):
-        return self.__dict__.values()
-
-    def to_dict_type(self):
-        return {
-            key: (value if not isinstance(value, ConfigWrapper) else value.to_dict_type())
-            for key, value in dict(**self).items()
-        }
-
-    def __len__(self):
-        return len(self.__dict__)
-
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    def __setitem__(self, key, value):
-        return setattr(self, key, value)
-
-    def __contains__(self, key):
-        return key in self.__dict__
-
-    def __repr__(self):
-        return self.__dict__.__repr__()
-    
-    
-
-def PlotVisiumCells(adata,annotation_list,size=0.8,alpha_img=0.3,lw=1,subset=None,palette='tab20',show_circle = True, legend = True, ax=None,**kwargs):
-    merged_df = adata.uns['cell_locations'].copy()
-    test = sc.AnnData(np.zeros(merged_df.shape), obs=merged_df)
-    if 'x' in merged_df.columns:
-        test.obsm['spatial'] = merged_df[["x", "y"]].to_numpy().copy()
-    elif 'X' in merged_df.columns:
-        test.obsm['spatial'] = merged_df[["X", "Y"]].to_numpy().copy()
-    else:
-        Error("No locations founded in cell_locations dataframe")
-        
-    test.uns = adata.uns
-    
-    if subset is not None:
-        #test = test[test.obs[annotation_list].isin(subset)]
-        test.obs.loc[~test.obs[annotation_list].isin(subset),annotation_list] = None
-        
-    sc.pl.spatial(
-        test,
-        color=annotation_list,
-        size=size,
-        frameon=False,
-        alpha_img=alpha_img,
-        show=False,
-        palette=palette,
-        na_in_legend=False,
-        ax=ax,title='',sort_order=True,**kwargs
-    )
-    if show_circle:
-        sf = adata.uns['spatial'][list(adata.uns['spatial'].keys())[0]]['scalefactors']['tissue_hires_scalef']
-        spot_radius = adata.uns['spatial'][list(adata.uns['spatial'].keys())[0]]['scalefactors']['spot_diameter_fullres']/2
-        for sloc in adata.obsm['spatial']:
-            rect = mpl.patches.Circle(
-                (sloc[0] * sf, sloc[1] * sf),
-                spot_radius * sf,
-                ec="grey",
-                lw=lw,
-                fill=False
-            )
-            ax.add_patch(rect)
-    ax.axes.xaxis.label.set_visible(False)
-    ax.axes.yaxis.label.set_visible(False)
-    
-    if not legend:
-        ax.get_legend().remove()
-    
-    # make frame visible
-    for _, spine in ax.spines.items():
-        spine.set_visible(True)
-    
-
-def PlotVisiumGene(generated_cells,gene,size=0.8,alpha_img=0.3,perc=0.00,palette='rocket_r', vis_index = None, vis_index_0=False, vis_index_only = None, colorbar_loc='right',title=None,ax=None):
-    test = generated_cells.copy()
-    if not 'spatial' in test.obsm.keys():
-        if 'x' in test.obs.columns:
-            test.obsm['spatial'] = test.obs[["x", "y"]].to_numpy()
-        elif 'X' in test.obs.columns:
-            test.obsm['spatial'] = test.obs[["X", "Y"]].to_numpy()
-        else:
-            raise Error("No locations founded in obs")
-        spot_size = 30
-    else:
-        spot_size = None
-        
-    try:
-        tmp = test[:,test.var.index==gene].X.toarray().copy()
-    except:
-        tmp = test[:,test.var.index==gene].X.copy()
-        
-    tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
-    tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
-    if vis_index is not None:
-        if vis_index_0:
-            tmp[~vis_index] = 0
-        else:
-            tmp[~vis_index] = None
-    if vis_index_only is not None:
-        test = test[vis_index_only]
-        tmp = tmp[vis_index_only]
-    test.obs[gene+'_visual'] = tmp
-    if title is None:
-        title='${}$'.format(gene)
-    
-    sc.pl.spatial(
-        test,
-        color=gene+'_visual',
-        size=size,
-        spot_size=spot_size,
-        frameon=False,
-        alpha_img=alpha_img,
-        show=False,
-        na_color='#e3dede',
-        cmap=palette,
-        na_in_legend=False,
-        colorbar_loc=colorbar_loc,
-        ax=ax,title=title
-    )
-    
-    ax.axes.xaxis.label.set_visible(False)
-    ax.axes.yaxis.label.set_visible(False)
-        
-
-    
-    
-def ConcatCells(s=0,e=4000,inter=500,es=3813,file_path='/home/share/xwanaf/sour_sep/Visium/data',prefix='',suffix='_noMarker_heart_Sig1.6_1e-05.h5ad',obs=None):
-    spot_id_range = np.concatenate((np.arange(s,e,inter), np.array([es])))
-    slices = []
-    for spot_id in np.concatenate((spot_id_range[:-1][None, :], spot_id_range[1:][None, :]), axis = 0).T:
-        sep = '_'
-        file_name = prefix+sep.join(str(e) for e in spot_id) + suffix
-        slices.append(sc.read(os.path.join(file_path, file_name)))
-        
-    x_decon_adata = slices[0].concatenate(
-        slices[1:],
-        batch_key="_",
-        uns_merge="unique",
-        index_unique=None
-        )
-#     y_sep_adata.obs = y_sep_adata.obs.reset_index(drop=True)
-#     y_sep_adata.obs = obs
-#     y_sep_adata.obs.index = y_sep_adata.obs.index.astype(str)
-    return x_decon_adata
-
-
-# def reorder(file1, file2):
-#     file1 = file1.copy()
-#     file2 = file2.copy()
-#     reorder_index = np.zeros(file1.shape[0])
-#     for i, spot_id in enumerate(np.unique(file1.obs['spot_id'])):
-#         spot_id_index = np.array(file1.obs['spot_id'] == spot_id)   
-#         file1_spot_id = file1[spot_id_index].copy()
-#         file2_spot_id = file2[spot_id_index].copy()
-#         assert np.array_equal(np.array(file1_spot_id.obs['spot_id']), np.array(file2_spot_id.obs['spot_id']))
-#         assert np.array_equal(np.array(file1_spot_id.obs['cell_type_label']), np.array(file2_spot_id.obs['cell_type_label']))
-
-#         try:
-#             file1_spot_id.X = file1_spot_id.X.toarray()
-#             file2_spot_id.X = file2_spot_id.X.toarray()
-#         except:
-#             pass
-
-#         spot_ct = np.array(file1_spot_id.obs['cell_type_label'])
-#         vals, counts = np.unique(spot_ct, return_counts = True)
-#         spot_reorder_index = np.zeros(spot_ct.shape[0], dtype = int)
-#         for j, val in enumerate(vals):
-#             ct_index = np.array(spot_ct == val)
-#             d_mtx = cosine_similarity(file2_spot_id.X[ct_index], file1_spot_id.X[ct_index])
-#             nrow, ncol = d_mtx.shape
-#             row, col = np.unravel_index(np.argsort(d_mtx.ravel())[::-1], d_mtx.shape)
-#             row_index = []
-#             col_index = []
-#             assert nrow == ncol
-#             for k in range(min(nrow, ncol)):
-#                 if k == 0:
-#                     row_index.append(row[k])
-#                     col_index.append(col[k])
-
-#                 else:
-#                     index1 = (~np.isin(row, row_index)) & (~np.isin(col, col_index))
-#                     row_index.append(row[index1][0])
-#                     col_index.append(col[index1][0])
-#             c_index = np.array(row_index)[np.argsort(np.array(col_index))]
-#             spot_reorder_index[ct_index] = np.arange(file1.shape[0])[spot_id_index][ct_index][c_index]
-
-#         reorder_index[spot_id_index] = spot_reorder_index
-#         reorder_index = reorder_index.astype(int)
-#     return reorder_index
-
-def reorder(file1, file2, spot_id_name = 'spot_index', cell_type_colname = 'cell_type_label'):
-    file1 = file1.copy()
-    file2 = file2.copy()
-    
-    reorder_index = np.zeros(file1.shape[0])
-    for i, spot_id in enumerate(np.unique(file2.obs[spot_id_name])):
-        spot_id_index = np.array(file2.obs[spot_id_name] == spot_id)   
-        file1_spot_id = file1[spot_id_index].copy()
-        file2_spot_id = file2[spot_id_index].copy()
-#         assert np.array_equal(np.array(file1_spot_id.obs['spot_id']), np.array(file2_spot_id.obs['spot_id']))
-#         assert np.array_equal(np.array(file1_spot_id.obs['cell_type_label']), np.array(file2_spot_id.obs['cell_type_label']))
-
-        try:
-            file1_spot_id.X = file1_spot_id.X.toarray()
-            file2_spot_id.X = file2_spot_id.X.toarray()
-        except:
-            pass
-
-        spot_ct = np.array(file2_spot_id.obs[cell_type_colname])
-        vals, counts = np.unique(spot_ct, return_counts = True)
-        spot_reorder_index = np.zeros(spot_ct.shape[0], dtype = int)
-        for j, val in enumerate(vals):
-            ct_index = np.array(spot_ct == val)
-            d_mtx = cosine_similarity(file2_spot_id.X[ct_index], file1_spot_id.X[ct_index])
-            nrow, ncol = d_mtx.shape
-            row, col = np.unravel_index(np.argsort(d_mtx.ravel())[::-1], d_mtx.shape)
-            row_index = []
-            col_index = []
-            assert nrow == ncol
-            for k in range(min(nrow, ncol)):
-                if k == 0:
-                    row_index.append(row[k])
-                    col_index.append(col[k])
-
-                else:
-                    index1 = (~np.isin(row, row_index)) & (~np.isin(col, col_index))
-                    row_index.append(row[index1][0])
-                    col_index.append(col[index1][0])
-            c_index = np.array(row_index)[np.argsort(np.array(col_index))]
-            spot_reorder_index[ct_index] = np.arange(file1.shape[0])[spot_id_index][ct_index][c_index]
-
-        reorder_index[spot_id_index] = spot_reorder_index
-        reorder_index = reorder_index.astype(int)
-    return reorder_index
-
-
-def VisualDE(ad_sc,gene,perc=0.02,Sparse=False,title=None):
-    try:
-        tmp = ad_sc[:,ad_sc.var.index==gene].X.toarray().copy()
-    except:
-        tmp = ad_sc[:,ad_sc.var.index==gene].X.copy()
-    tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
-    tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
-    if Sparse:
-        tmp[tmp==0] = -1
-    ad_sc.obs['gene_visual'] = tmp
-    plt.subplots(figsize=(10,8.5))
-    sns.scatterplot(data=ad_sc.obs, x="x", y="y",s=10,hue='gene_visual',palette='rocket_r',legend=False,alpha=0.9)#rocket_r
-    #plt.gca().invert_yaxis()
-    plt.axis('off')
-    if title is None:
-        plt.title('${}$'.format(gene),fontsize=30)
-    else:
-        plt.title(title,fontsize=30)
-    plt.show()
-    
-    
 
 def VisualscDE(ad_sc,gene):
     try:
@@ -384,6 +95,36 @@ def ScanpyDowngradeLoad(f):
     return sc_rna_adata
 
 
+def configure_logging(logger_name):
+    LOG_LEVEL = logging.DEBUG
+    log_filename = logger_name+'.log'
+    importer_logger = logging.getLogger('importer_logger')
+    importer_logger.setLevel(LOG_LEVEL)
+    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s')
+
+    fh = logging.FileHandler(filename=log_filename)
+    fh.setLevel(LOG_LEVEL)
+    fh.setFormatter(formatter)
+    importer_logger.addHandler(fh)
+
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setLevel(LOG_LEVEL)
+    sh.setFormatter(formatter)
+    importer_logger.addHandler(sh)
+    return importer_logger
+
+
+
+def removeOutliers(ad_sc_1k,cell_type):
+    cell_types = np.unique(ad_sc_1k.obs[cell_type])
+    valid_cells = []
+    for c in cell_types:
+        tmp = ad_sc_1k.obsm['X_umap'][ad_sc_1k.obs[cell_type]==c]
+        tmp_norm = np.linalg.norm(tmp-tmp.mean(0),axis=1)
+        valid_cells += list(ad_sc_1k.obs.loc[ad_sc_1k.obs[cell_type]==c].index.values[tmp_norm<np.median(tmp_norm)*3])
+    return ad_sc_1k[ad_sc_1k.obs.index.isin(valid_cells)]
+
+
 
 def ComputeSigma(sc_data_process_marker,cell_class_column):
     if 'Marker' in sc_data_process_marker.var.columns:
@@ -398,6 +139,170 @@ def ComputeSigma(sc_data_process_marker,cell_class_column):
         data_Ed.append(pdist(data[index]).max())
     return data_Ed
 
+
+
+def stardist_2D_versatile_he(img, nms_thresh=None, prob_thresh=None):
+    #axis_norm = (0,1)   # normalize channels independently
+    axis_norm = (0,1,2) # normalize channels jointly
+    # Make sure to normalize the input image beforehand or supply a normalizer to the prediction function.
+    # this is the default normalizer noted in StarDist examples.
+    img = normalize(img, 1, 99.8, axis=axis_norm)
+    model = StarDist2D.from_pretrained('2D_versatile_he')
+    labels, _ = model.predict_instances(img, nms_thresh=nms_thresh, prob_thresh=prob_thresh)
+    return labels
+
+
+
+def DissectSegRes(df):
+    tmps = []
+    for row in df.iterrows():
+        if row[1]['segmentation_label'] == 0:
+            continue
+        for idx,i in enumerate(row[1]['segmentation_centroid']):
+            tmps.append(list(i)+[row[0],row[0]+'_{}'.format(idx),row[1]['segmentation_label']])
+    return pd.DataFrame(tmps,columns=['x','y','spot_index','cell_index','cell_nums'])  
+
+
+
+def PlotVisiumCells(adata,annotation_list,size=0.8,alpha_img=0.3,lw=1,subset=None,palette='tab20',show_circle = True, legend = True, ax=None,**kwargs):
+    merged_df = adata.uns['cell_locations'].copy()
+    test = sc.AnnData(np.zeros(merged_df.shape), obs=merged_df)
+    test.obsm['spatial'] = merged_df[["x", "y"]].to_numpy().copy()
+    test.uns = adata.uns
+    
+    if subset is not None:
+        #test = test[test.obs[annotation_list].isin(subset)]
+        test.obs.loc[~test.obs[annotation_list].isin(subset),annotation_list] = None
+        
+    sc.pl.spatial(
+        test,
+        color=annotation_list,
+        size=size,
+        frameon=False,
+        alpha_img=alpha_img,
+        show=False,
+        palette=palette,
+        na_in_legend=False,
+        ax=ax,title='',sort_order=True,**kwargs
+    )
+    if show_circle:
+        sf = adata.uns['spatial'][list(adata.uns['spatial'].keys())[0]]['scalefactors']['tissue_hires_scalef']
+        spot_radius = adata.uns['spatial'][list(adata.uns['spatial'].keys())[0]]['scalefactors']['spot_diameter_fullres']/2
+        for sloc in adata.obsm['spatial']:
+            rect = mpl.patches.Circle(
+                (sloc[0] * sf, sloc[1] * sf),
+                spot_radius * sf,
+                ec="grey",
+                lw=lw,
+                fill=False
+            )
+            ax.add_patch(rect)
+    ax.axes.xaxis.label.set_visible(False)
+    ax.axes.yaxis.label.set_visible(False)
+    
+    if not legend:
+        ax.get_legend().remove()
+    
+    # make frame visible
+    for _, spine in ax.spines.items():
+        spine.set_visible(True)
+    
+
+def PlotVisiumGene(generated_cells,gene,size=0.8,alpha_img=0.3,perc=0.00,palette='rocket_r', vis_index = None, vis_index_only = None, colorbar_loc='right',title=None,ax=None):
+    test = generated_cells.copy()
+    if not 'spatial' in test.obsm.keys():
+        if 'x' in test.obs.columns:
+            test.obsm['spatial'] = test.obs[["x", "y"]].to_numpy()
+        elif 'X' in test.obs.columns:
+            test.obsm['spatial'] = test.obs[["X", "Y"]].to_numpy()
+        else:
+            raise Error("No locations founded in obs")
+        spot_size = 30
+    else:
+        spot_size = None
+        
+    try:
+        tmp = test[:,test.var.index==gene].X.toarray().copy()
+    except:
+        tmp = test[:,test.var.index==gene].X.copy()
+        
+    tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
+    tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
+    if vis_index is not None:
+        tmp[~vis_index] = None
+    if vis_index_only is not None:
+        test = test[vis_index_only]
+        tmp = tmp[vis_index_only]
+    test.obs[gene+'_visual'] = tmp
+    if title is None:
+        title='${}$'.format(gene)
+    
+    sc.pl.spatial(
+        test,
+        color=gene+'_visual',
+        size=size,
+        spot_size=spot_size,
+        frameon=False,
+        alpha_img=alpha_img,
+        show=False,
+        na_color='#e3dede',
+        cmap=palette,
+        na_in_legend=False,
+        colorbar_loc=colorbar_loc,
+        ax=ax,title=title
+    )
+    
+    ax.axes.xaxis.label.set_visible(False)
+    ax.axes.yaxis.label.set_visible(False)
+    
+def PlotVisiumGeneRaw(generated_cells,gene,size=0.8,alpha_img=0.3,perc=0.00,palette='rocket_r', vis_index = None, vis_index_only = None, colorbar_loc='right',title=None,ax=None, vmin = None, vmax = None):
+    test = generated_cells.copy()
+    if not 'spatial' in test.obsm.keys():
+        if 'x' in test.obs.columns:
+            test.obsm['spatial'] = test.obs[["x", "y"]].to_numpy()
+        elif 'X' in test.obs.columns:
+            test.obsm['spatial'] = test.obs[["X", "Y"]].to_numpy()
+        else:
+            raise Error("No locations founded in obs")
+        spot_size = 30
+    else:
+        spot_size = None
+
+    try:
+        tmp = test[:,test.var.index==gene].X.toarray().copy()
+    except:
+        tmp = test[:,test.var.index==gene].X.copy()
+
+    # tmp = np.clip(tmp,np.quantile(tmp,perc),np.quantile(tmp,1-perc))
+    # tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
+    if vis_index is not None:
+        tmp[~vis_index] = None
+    if vis_index_only is not None:
+        test = test[vis_index_only]
+        tmp = tmp[vis_index_only]
+    test.obs[gene+'_visual'] = tmp
+    if title is None:
+        title='${}$'.format(gene)
+
+    sc.pl.spatial(
+        test,
+        color=gene+'_visual',
+        size=size,
+        spot_size=spot_size,
+        frameon=False,
+        alpha_img=alpha_img,
+        show=False,
+        na_color='#e3dede',
+        cmap=palette,
+        na_in_legend=False,
+        colorbar_loc=colorbar_loc,
+        ax=ax,title=title, vmin=vmin, vmax = vmax
+    )
+
+    ax.axes.xaxis.label.set_visible(False)
+    ax.axes.yaxis.label.set_visible(False)
+    
+    
 
 def PlotVisiumCellType(ad_sp,weight,cell_type,size=1.5,ax=None):
     test = ad_sp.copy()
@@ -430,13 +335,30 @@ def GenerateCellTypeProportion(ss_res):
     return ss_res
 
 
+def ConcatCells(spot_id_range,file_path='/home/share/xwanaf/sour_sep/Visium/data',prefix='',suffix='_noMarker_heart_Sig1.6_1e-05.h5ad',obs=None):
+    slices = []
+    for spot_id in np.concatenate((spot_id_range[:-1][None, :], spot_id_range[1:][None, :]), axis = 0).T:
+        sep = '_'
+        file_name = prefix+sep.join(str(e) for e in spot_id) + suffix
+        slices.append(sc.read(os.path.join(file_path, file_name)))
+        
+    y_sep_adata = slices[0].concatenate(
+        slices[1:],
+        batch_key=None,
+        uns_merge="unique",
+        index_unique=None
+        )
+    y_sep_adata.obs = y_sep_adata.obs.reset_index(drop=True)
+    if obs is not None:
+        y_sep_adata.obs = obs
+    y_sep_adata.obs.index = y_sep_adata.obs.index.astype(str)
+    return y_sep_adata   
+    
+    
 def PlotSampledData(gen_sample_adata,sc_data_process,cell_type_key,palette=None,scale=True):   
     gen_sample_adata = gen_sample_adata.copy()
     sc_data_process = sc_data_process.copy()
-    if 'Marker' in sc_data_process.var.columns:
-        sc_data_process_marker = sc_data_process[:,sc_data_process.var['Marker']]
-    else:
-        sc_data_process_marker = sc_data_process
+    sc_data_process_marker = sc_data_process[:,sc_data_process.var['Marker']]
     if sc_data_process_marker.X.max()>30:
         print(f'Maximum value: {sc_data_process_marker.X.max()}, need to run log1p')
         sc.pp.log1p(sc_data_process_marker)
@@ -483,9 +405,27 @@ def PlotSampledData(gen_sample_adata,sc_data_process,cell_type_key,palette=None,
     plt.show()  
     return adata_all
 
+    
+from scipy.sparse.csc import csc_matrix
+from scipy.sparse.csr import csr_matrix
+from matplotlib.gridspec import GridSpec
 
 
+def convert_adata_array(adata):
+    if isinstance(adata.X, csc_matrix) or isinstance(adata.X, csr_matrix):
+        adata.X = adata.X.toarray()
+        
+def construct_obs_plot(df_plot, adata, perc=0, suffix=None):
+    # clip
+    df_plot = df_plot.clip(df_plot.quantile(perc), df_plot.quantile(1-perc/3), axis=1)
 
+    # normalize
+    df_plot = (df_plot - df_plot.min()) / (df_plot.max() - df_plot.min())
+
+    if suffix:
+        df_plot = df_plot.add_suffix(" ({})".format(suffix))
+    adata.obs = pd.concat([adata.obs, df_plot], axis=1)
+    
 def plot_genes_sc(
     genes, 
     adata_measured, 
@@ -493,14 +433,14 @@ def plot_genes_sc(
     x="x",
     y = "y",
     spot_size=None, 
-    scale_factor=None, 
+    scale_factor=0.1, 
     cmap="inferno", 
     perc=0,
     return_figure=False
 ):
     adata_measured = adata_measured.copy()
     adata_predicted = adata_predicted.copy()
-    # remove df_plot in obs 
+    # remove df_plot in obs
     adata_measured.obs.drop(
         ["{} (measured)".format(gene) for gene in genes],
         inplace=True,
@@ -582,7 +522,7 @@ def plot_genes_sc(
             ax=ax_m,
             show=False,
             cmap=cmap,
-            title="{} (measured)".format(gene),colorbar_loc=None
+            colorbar_loc=None
         )
         ax_p = fig.add_subplot(gs[ix, 1])
         sc.pl.spatial(
@@ -594,12 +534,12 @@ def plot_genes_sc(
             ax=ax_p,
             show=False,
             cmap=cmap,
-            title='Predicted',colorbar_loc=None
+            colorbar_loc=None
         )
         
     #     sc.pl.spatial(adata_measured, color=['{} (measured)'.format(gene) for gene in genes], frameon=False)
     #     sc.pl.spatial(adata_predicted, color=['{} (predicted)'.format(gene) for gene in genes], frameon=False)
-    fig.tight_layout()#(pad=.8)
+
     # remove df_plot in obs
     adata_measured.obs.drop(
         ["{} (measured)".format(gene) for gene in genes],
@@ -615,22 +555,112 @@ def plot_genes_sc(
     )
     if return_figure==True:
         return fig
-
-def convert_adata_array(adata):
-    if isinstance(adata.X, csc_matrix) or isinstance(adata.X, csr_matrix):
-        adata.X = adata.X.toarray()
-        
-def construct_obs_plot(df_plot, adata, perc=0, suffix=None):
-    # clip
-    df_plot = df_plot.clip(df_plot.quantile(perc), df_plot.quantile(1 - perc), axis=1)
-
-    # normalize
-    df_plot = (df_plot - df_plot.min()) / (df_plot.max() - df_plot.min())
-
-    if suffix:
-        df_plot = df_plot.add_suffix(" ({})".format(suffix))
-    adata.obs = pd.concat([adata.obs, df_plot], axis=1)
-
-from scipy.sparse.csc import csc_matrix
-from scipy.sparse.csr import csr_matrix
-from matplotlib.gridspec import GridSpec
+    
+    
+def VisualGenesSc(sp_res,adata_Mop,genes,**kwargs):
+    genes = [_.lower() for _ in genes]
+    data = np.exp(sp_res.X)-1
+    data[data<0] = 0
+    sp_res.X = data
+    sp_res.obs['spot_index'] = sp_res.obs['spot_index'].astype("category")
+    barcodes = sp_res.obs['spot_index'].unique()
+    spot_pred = np.zeros((len(barcodes),sp_res.shape[1]))
+    for i,b in enumerate(barcodes):
+        spot_pred[i] = sp_res[sp_res.obs['spot_index']==b].X.mean(0)
+    adata_Mop_ori = AnnData(X = adata_Mop[adata_Mop.obs.index.isin(barcodes)].X, var = adata_Mop.var) 
+    adata_Mop_ori.obs['X'] = adata_Mop[adata_Mop.obs.index.isin(barcodes)].obsm['spatial'][:,0]
+    adata_Mop_ori.obs['Y'] = adata_Mop[adata_Mop.obs.index.isin(barcodes)].obsm['spatial'][:,1]
+    adata_Mop_pre = AnnData(X = spot_pred, obs=adata_Mop_ori.obs, var = sp_res.var)
+    sns.set_context('paper',font_scale=1.8)
+    plot_genes_sc(genes, adata_measured=adata_Mop_ori, adata_predicted=adata_Mop_pre, x='X',y='Y',spot_size=270,scale_factor=0.1, perc=0.02, return_figure=False,**kwargs)
+    
+    
+    
+'''    
+from assocplots.manhattan import *
+from assocplots.qqplot import *
+from matplotlib import style
+def qqplot(data, labels, n_quantiles=200, alpha=0.95, error_type='theoretical', 
+           distribution = 'binomial', log10conv=True, 
+           color=['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'tab:brown', 'C9', 'tab:olive', 'tab:cyan', 'tab:gray'], 
+           shape=['.','+','.','+','.','+'],
+           fill_dens=[0.1 for _ in range(10)], type = 'uniform', title='None', ms=5, legloc=2, xlim=None, ylim=None, 
+           showXlabel=True, showYlabel=True, showXticks=True, showYticks=True, showLeg=True, ax=None):
+    Function for plotting Quantile Quantile (QQ) plots with confidence interval (CI)
+    :param data: NumPy 1D array with data
+    :param labels:
+    :param type: type of the plot
+    :param n_quantiles: number of quntiles to plot
+    :param alpha: confidence interval
+    :param distribution: beta/normal/binomial -- type of the error estimation. Most common in the literature is 'beta'.
+    :param log10conv: conversion to -log10(p) for the figure
+    :return: nothing
+    xmax = 0
+    ymax = 0
+    if type == 'uniform':
+        # we expect distribution from 0 to 1
+        for j in range(len(data)):
+            # define quantiles positions:
+            q_pos = np.concatenate([np.arange(99.)/len(data[j]), np.logspace(-np.log10(len(data[j]))+2, 0, n_quantiles)])
+            # define quantiles in data
+            q_data = mquantiles(data[j], prob=q_pos, alphap=0, betap=1, limit=(0, 1)) # linear interpolation
+            # define theoretical predictions
+            q_th = q_pos.copy()
+            # evaluate errors
+            q_err = np.zeros([len(q_pos),2])
+            if np.sum(alpha) > 0:
+                for i in range(0, len(q_pos)):
+                    if distribution == 'beta':
+                        q_err[i, :] = beta.interval(alpha, len(data[j])*q_pos[i], len(data[j]) - len(data[j])*q_pos[i])
+                    elif distribution == 'binomial':
+                        q_err[i, :] = binom.interval(alpha=alpha, n=len(data[j]), p=q_pos[i])
+                    elif distribution == 'normal':
+                        q_err[i, :] = norm.interval(alpha, len(data[j])*q_pos[i], np.sqrt(len(data[j])*q_pos[i]*(1.-q_pos[i])))
+                    else:
+                        print('Distribution is not defined!')
+                q_err[i, q_err[i, :] < 0] = 1e-15
+                if (distribution == 'binomial') | (distribution == 'normal'):
+                    q_err /= 1.0*len(data[j])
+                    for i in range(0, 100):
+                        q_err[i,:] += 1e-15
+            # print(q_err[100:, :])
+            slope, intercept, r_value, p_value, std_err = linregress(q_th, q_data)
+            # print(labels[j], ' -- Slope: ', slope, " R-squared:", r_value**2)
+            #print(q_data.shape,q_th.shape,n_quantiles)
+            ax.plot(-np.log10(q_th[n_quantiles-1:]), -np.log10(q_data[n_quantiles-1:]), '-', color=color[j],alpha=0.7)
+            ax.plot(-np.log10(q_th[:n_quantiles]), -np.log10(q_data[:n_quantiles]), '.', color=color[j], marker=shape[j], markersize=ms, label=labels[j],alpha=0.7)
+            xmax = np.max([xmax, - np.log10(q_th[1])])
+            ymax = np.max([ymax, - np.log10(q_data[0])])
+            #print(ymax)
+            # print(- np.log10(q_th[:]))
+            if np.sum(alpha)>0:
+                if error_type=='experimental':
+                    ax.fill_between(-np.log10(q_th), -np.log10(q_data/q_th*q_err[:,0]), -np.log10(q_data/q_th*q_err[:,1]), color=color[j], alpha=fill_dens[j], label='%1.2f CI'%alpha)
+        if np.sum(alpha)>0:
+            if error_type=='theoretical':
+                ax.fill_between(-np.log10(q_th), -np.log10(q_err[:,0]), -np.log10(q_err[:,1]), color='grey', alpha=fill_dens[j], label='%1.2f CI'%alpha)
+    ax.legend(loc=legloc,handlelength=1,labelspacing=0.3)#,fontsize=12
+    if not showLeg:
+        ax.get_legend().remove()
+    if showXlabel:
+        ax.set_xlabel('Theoretical -$log_{10}P$')
+    if showYlabel:
+        ax.set_ylabel('Replication -$log_{10}P$')
+    ax.plot([0, 100], [0, 100],'--k',linewidth=0.5)
+    if xlim is None:
+        ax.set_xlim([0, xmax*1.08])
+    else:
+        ax.set_xlim(xlim)
+    if ylim is None:
+        ax.set_ylim([0, np.ceil(ymax*1.05)])
+    else:
+        ax.set_ylim(ylim)
+    ax.set_title(title)
+    if not showXticks:
+        ax.set_xticks([])
+    if not showYticks:
+        ax.set_yticks([])
+    # return q_data, q_th, q_err
+style.use('ggplot')
+style.use('seaborn-white')
+'''
