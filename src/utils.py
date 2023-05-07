@@ -617,6 +617,51 @@ def VisualGenesSc(sp_res,adata_Mop,genes,**kwargs):
     plot_genes_sc(genes, adata_measured=adata_Mop_ori, adata_predicted=adata_Mop_pre, x='X',y='Y',spot_size=270,scale_factor=0.1, perc=0.02, return_figure=False,**kwargs)
     
     
+def reorder(file1, file2, spot_id_name = 'spot_index', cell_type_colname = 'cell_type_label'):
+    file1 = file1.copy()
+    file2 = file2.copy()
+    
+    reorder_index = np.zeros(file1.shape[0])
+    for i, spot_id in enumerate(np.unique(file2.obs[spot_id_name])):
+        spot_id_index = np.array(file2.obs[spot_id_name] == spot_id)   
+        file1_spot_id = file1[spot_id_index].copy()
+        file2_spot_id = file2[spot_id_index].copy()
+#         assert np.array_equal(np.array(file1_spot_id.obs['spot_id']), np.array(file2_spot_id.obs['spot_id']))
+#         assert np.array_equal(np.array(file1_spot_id.obs['cell_type_label']), np.array(file2_spot_id.obs['cell_type_label']))
+
+        try:
+            file1_spot_id.X = file1_spot_id.X.toarray()
+            file2_spot_id.X = file2_spot_id.X.toarray()
+        except:
+            pass
+
+        spot_ct = np.array(file2_spot_id.obs[cell_type_colname])
+        vals, counts = np.unique(spot_ct, return_counts = True)
+        spot_reorder_index = np.zeros(spot_ct.shape[0], dtype = int)
+        for j, val in enumerate(vals):
+            ct_index = np.array(spot_ct == val)
+            d_mtx = cosine_similarity(file2_spot_id.X[ct_index], file1_spot_id.X[ct_index])
+            nrow, ncol = d_mtx.shape
+            row, col = np.unravel_index(np.argsort(d_mtx.ravel())[::-1], d_mtx.shape)
+            row_index = []
+            col_index = []
+            assert nrow == ncol
+            for k in range(min(nrow, ncol)):
+                if k == 0:
+                    row_index.append(row[k])
+                    col_index.append(col[k])
+
+                else:
+                    index1 = (~np.isin(row, row_index)) & (~np.isin(col, col_index))
+                    row_index.append(row[index1][0])
+                    col_index.append(col[index1][0])
+            c_index = np.array(row_index)[np.argsort(np.array(col_index))]
+            spot_reorder_index[ct_index] = np.arange(file1.shape[0])[spot_id_index][ct_index][c_index]
+
+        reorder_index[spot_id_index] = spot_reorder_index
+        reorder_index = reorder_index.astype(int)
+    return reorder_index
+
     
 '''    
 from assocplots.manhattan import *
