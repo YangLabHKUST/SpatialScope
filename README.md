@@ -26,6 +26,7 @@ We provide source codes for reproducing the SpatialScope analysis in the main te
 
 All relevent materials involved in the reproducing codes are availabel from [here](https://drive.google.com/drive/folders/1PXv_brtr-tXshBVEd_HSPIagjX9oF7Kg?usp=sharing)
 
++ [Benchmarking](https://github.com/YangLabHKUST/SpatialScope/blob/master/demos/Benchmarking-MERFISH.ipynb)
 + [Human Heart (Visium, a single slice)](https://github.com/YangLabHKUST/SpatialScope/blob/master/demos/Human-Heart.ipynb)
 + [Mouse Brain (Visium, 3D alignment of multiple slices)](https://github.com/YangLabHKUST/SpatialScope/blob/master/demos/Mouse-Brain.ipynb)
 + [Mouse Cerebellum (Slideseq-V2)](https://github.com/YangLabHKUST/SpatialScope/blob/master/demos/Mouse-Cerebellum-Slideseq.ipynb)
