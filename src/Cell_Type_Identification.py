@@ -37,7 +37,7 @@ import argparse
 
 
 class SpatialScopeCTI:
-    def __init__(self,tissue,out_dir, ST_Data, SC_Data, cell_class_column = 'cell_type'):
+    def __init__(self,tissue,out_dir, ST_Data, SC_Data, cell_class_column = 'cell_type', InitProp = None):
         self.tissue = tissue
         self.out_dir = out_dir 
         self.ST_Data = ST_Data
@@ -53,7 +53,7 @@ class SpatialScopeCTI:
         loggings = configure_logging(os.path.join(self.out_dir,'logs'))
         self.loggings = loggings 
         self.LoadData(self.ST_Data, self.SC_Data, cell_class_column = self.cell_class_column)
-        self.InitProp = None
+        self.InitProp = InitProp
         
         
     def LoadData(self, ST_Data, SC_Data, cell_class_column = 'cell_type'):
@@ -88,7 +88,7 @@ class SpatialScopeCTI:
         self.cell_class_column = cell_class_column
         
         
-    def WarmStart(self,hs_ST):
+    def WarmStart(self,hs_ST,UMI_min_sigma = 300):
         self.LoadLikelihoodTable()
         
         counts = self.sp_adata.to_df().T
@@ -116,7 +116,7 @@ class SpatialScopeCTI:
         cell_types = pd.DataFrame(self.sc_adata.obs[self.cell_class_column])
         nUMI = pd.DataFrame(self.sc_adata.to_df().T.sum(0))
         reference = Reference(counts, cell_types, nUMI)
-        myRCTD = create_RCTD(puck, reference, max_cores = 22, UMI_min=UMI_min, loggings = self.loggings)
+        myRCTD = create_RCTD(puck, reference, max_cores = 22, UMI_min=UMI_min, UMI_min_sigma = UMI_min_sigma, loggings = self.loggings)
         myRCTD = run_RCTD(myRCTD, self.Q_mat_all, self.X_vals_loc, loggings = self.loggings)
         self.InitProp = myRCTD
         import pickle
@@ -158,24 +158,26 @@ class SpatialScopeCTI:
         self.Q_mat_all = Q_mat_all
         self.X_vals_loc = X_vals_loc
         
-    def CellTypeIdentification(self, nu = 10, hs_ST = False):
+    def CellTypeIdentification(self, nu = 10, n_neighbo = 10, hs_ST = False, VisiumCellsPlot = True, UMI_min_sigma = 300):
         cell_locations = self.sp_adata.uns['cell_locations'].copy()
-        if self.InitProp is None and not os.path.exists(os.path.join(self.out_dir, 'InitProp.pickle')):
-            self.WarmStart(hs_ST=hs_ST)
-        elif self.InitProp is None and os.path.exists(os.path.join(self.out_dir, 'InitProp.pickle')):
+        if self.InitProp is not None:
+            self.WarmStart(hs_ST=hs_ST, UMI_min_sigma = UMI_min_sigma)
+        elif not os.path.exists(os.path.join(self.out_dir, 'InitProp.pickle')):
+            self.WarmStart(hs_ST=hs_ST, UMI_min_sigma = UMI_min_sigma)
+        elif os.path.exists(os.path.join(self.out_dir, 'InitProp.pickle')):
             self.loggings.info('Loading existing InitProp, no need to warmstart')
             with open(os.path.join(self.out_dir, 'InitProp.pickle'), 'rb') as handle:
                 self.InitProp = pickle.load(handle)
                 self.LoadLikelihoodTable()
             
-        CellTypeLabel = SingleCellTypeIdentification(self.InitProp, cell_locations, 'spot_index', self.Q_mat_all, self.X_vals_loc, nu = nu, n_epoch = 8, loggings = self.loggings, hs_ST = hs_ST)
+        CellTypeLabel = SingleCellTypeIdentification(self.InitProp, cell_locations, 'spot_index', self.Q_mat_all, self.X_vals_loc, nu = nu, n_epoch = 8, n_neighbo = n_neighbo, loggings = self.loggings, hs_ST = hs_ST)
         label2ct = CellTypeLabel['label2ct']
         discrete_label = CellTypeLabel['discrete_label'].copy()
         discrete_label['discrete_label_ct'] = label2ct.iloc[discrete_label['discrete_label']].values.squeeze()
         discrete_label.to_csv(os.path.join(self.out_dir, 'CellTypeLabel_nu' + str(nu) + '.csv'))
         self.sp_adata.uns['cell_locations'] = discrete_label
 
-        if hs_ST:
+        if hs_ST or not VisiumCellsPlot:
             fig, ax = plt.subplots(figsize=(10,8.5),dpi=100)
             sns.scatterplot(data=discrete_label, x="x",y="y",s=10,hue='discrete_label_ct',palette='tab20',legend=True)
             plt.axis('off')
@@ -183,7 +185,7 @@ class SpatialScopeCTI:
             plt.savefig(os.path.join(self.out_dir, 'estemated_ct_label.png'))
             plt.close()
         
-        else:
+        elif VisiumCellsPlot:
             if self.sp_adata.obsm['spatial'].shape[1] == 2:
                 fig, ax = plt.subplots(1,1,figsize=(14, 8),dpi=200)
                 PlotVisiumCells(self.sp_adata,"discrete_label_ct",size=0.4,alpha_img=0.4,lw=0.4,palette='tab20',ax=ax)
@@ -275,23 +277,37 @@ if __name__ == "__main__":
             --SC_Data ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad 
     <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>  
     """ 
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ("yes", "true", "t", "y", "1"):
+            return True
+        elif v.lower() in ("no", "false", "f", "n", "0"):
+            return False
+        else:
+            raise argparse.ArgumentTypeError("Boolean value expected.")
     
     parser = argparse.ArgumentParser(description='simulation sour_sep')
     parser.add_argument('--tissue', type=str, help='tissue name', default=None)
     parser.add_argument('--out_dir', type=str, help='output path', default=None)
-    parser.add_argument('--nu', type=int, help='spatial prior parameter, higher nu means stronger spatial prior', default=10)
+    parser.add_argument('--nu', type=float, help='spatial prior parameter, higher nu means stronger spatial prior', default=10)
+    parser.add_argument('--n_neighbo', type=int, help='spatial prior parameter, the range of neighbor cells', default=10)
     parser.add_argument('--ST_Data', type=str, help='ST data path', default=None)
     parser.add_argument('--SC_Data', type=str, help='single cell reference data path', default=None)
     parser.add_argument('--cell_class_column', type=str, help='input cell class label column in scRef file', default = 'cell_type')    
     parser.add_argument('--hs_ST', action="store_true", help='high resolution ST data such as Slideseq, DBiT-seq, and HDST, MERFISH etc.')
-
+    parser.add_argument("--VisiumCellsPlot", type=str2bool, const=True, default=True, nargs="?", help="whether to plot in VisiumCells mode or just scatter plot")
+    parser.add_argument('--UMI_min_sigma', type=int, help='WarmStart parameter', default=300)
+    parser.add_argument('--InitProp', type=str, help='whether to run warmstart', default = None)   
     args = parser.parse_args()
-
+    
     if not os.path.exists(args.out_dir):
         os.mkdir(args.out_dir)
     if not os.path.exists(os.path.join(args.out_dir,args.tissue)):
         os.mkdir(os.path.join(args.out_dir,args.tissue))
 
-
-    CTI = SpatialScopeCTI(args.tissue,args.out_dir, args.ST_Data, args.SC_Data, cell_class_column = args.cell_class_column)
-    CTI.CellTypeIdentification(nu = args.nu, hs_ST = args.hs_ST)
+    if (args.nu - int(args.nu)) == 0:
+        args.nu = int(args.nu)
+    
+    CTI = SpatialScopeCTI(args.tissue,args.out_dir, args.ST_Data, args.SC_Data, cell_class_column = args.cell_class_column, InitProp = args.InitProp)
+    CTI.CellTypeIdentification(nu = args.nu, n_neighbo = args.n_neighbo, hs_ST = args.hs_ST, VisiumCellsPlot = args.VisiumCellsPlot, UMI_min_sigma = args.UMI_min_sigma)

@@ -7,6 +7,7 @@ import pathlib
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 # import skimage
+import scipy
 import seaborn as sns
 from itertools import chain
 # from stardist.models import StarDist2D
@@ -477,7 +478,9 @@ def plot_genes_sc(
     spot_size=None, 
     scale_factor=0.1, 
     cmap="inferno", 
+    perc_measured = 0,
     perc=0,
+    title = True,
     return_figure=False
 ):
     adata_measured = adata_measured.copy()
@@ -530,7 +533,7 @@ def plot_genes_sc(
     df = pd.DataFrame(
         data=np.array(data).T, columns=genes, index=adata_measured.obs.index,
     )
-    construct_obs_plot(df, adata_measured, suffix="measured")
+    construct_obs_plot(df, adata_measured, perc=perc_measured, suffix="measured")
 
     df = pd.DataFrame(
         data=np.array(adata_predicted[:, genes].X),
@@ -553,31 +556,60 @@ def plot_genes_sc(
     if ("spatial" not in adata_measured.uns.keys()) and (spot_size==None and scale_factor==None):
         raise ValueError("Spot Size and Scale Factor cannot be None when ad_sp.uns['spatial'] does not exist")
         
-    for ix, gene in enumerate(genes):
-        ax_m = fig.add_subplot(gs[ix, 0])
-        sc.pl.spatial(
-            adata_measured,
-            spot_size=spot_size,
-            scale_factor=scale_factor,
-            color=["{} (measured)".format(gene)],
-            frameon=False,
-            ax=ax_m,
-            show=False,
-            cmap=cmap,
-            colorbar_loc=None
-        )
-        ax_p = fig.add_subplot(gs[ix, 1])
-        sc.pl.spatial(
-            adata_predicted,
-            spot_size=spot_size,
-            scale_factor=scale_factor,
-            color=["{} (predicted)".format(gene)],
-            frameon=False,
-            ax=ax_p,
-            show=False,
-            cmap=cmap,
-            colorbar_loc=None
-        )
+    if title:
+        for ix, gene in enumerate(genes):
+            ax_m = fig.add_subplot(gs[ix, 0])
+            sc.pl.spatial(
+                adata_measured,
+                spot_size=spot_size,
+                scale_factor=scale_factor,
+                color=["{} (measured)".format(gene)],
+                frameon=False,
+                ax=ax_m,
+                show=False,
+                cmap=cmap,
+                colorbar_loc=None
+            )
+            ax_p = fig.add_subplot(gs[ix, 1])
+            sc.pl.spatial(
+                adata_predicted,
+                spot_size=spot_size,
+                scale_factor=scale_factor,
+                color=["{} (predicted)".format(gene)],
+                frameon=False,
+                ax=ax_p,
+                show=False,
+                cmap=cmap,
+                colorbar_loc=None
+            )
+    else:
+        for ix, gene in enumerate(genes):
+            ax_m = fig.add_subplot(gs[ix, 0])
+            sc.pl.spatial(
+                adata_measured,
+                spot_size=spot_size,
+                scale_factor=scale_factor,
+                color=["{} (measured)".format(gene)],
+                frameon=False,
+                ax=ax_m,
+                show=False,
+                cmap=cmap,
+                colorbar_loc=None,
+                title = ''
+            )
+            ax_p = fig.add_subplot(gs[ix, 1])
+            sc.pl.spatial(
+                adata_predicted,
+                spot_size=spot_size,
+                scale_factor=scale_factor,
+                color=["{} (predicted)".format(gene)],
+                frameon=False,
+                ax=ax_p,
+                show=False,
+                cmap=cmap,
+                colorbar_loc=None,
+                title = ''
+            )
         
     #     sc.pl.spatial(adata_measured, color=['{} (measured)'.format(gene) for gene in genes], frameon=False)
     #     sc.pl.spatial(adata_predicted, color=['{} (predicted)'.format(gene) for gene in genes], frameon=False)
@@ -662,7 +694,114 @@ def reorder(file1, file2, spot_id_name = 'spot_index', cell_type_colname = 'cell
         reorder_index = reorder_index.astype(int)
     return reorder_index
 
+  
+   
+ # generate fake spatial data utils
+def add_spot_label(spatial_adata, x_seg, y_seg, location_X_column = 'X', location_Y_column = 'Y'):
+    spot_label = np.zeros(spatial_adata.shape[0], dtype=object)
+    spot_index = np.zeros(spatial_adata.shape[0], dtype=int)
+    location_X = np.array(spatial_adata.obs[location_X_column])
+    location_Y = np.array(spatial_adata.obs[location_Y_column])
+    spot_location_X = np.zeros(spatial_adata.shape[0])
+    spot_location_Y = np.zeros(spatial_adata.shape[0])
+
+    temp = 0
+    for i in range(x_seg.shape[0] - 1):
+        for j in range(y_seg.shape[0] - 1):
+            spot_ind = (location_X >= x_seg[i]) & (location_X <= x_seg[i+1]) & (location_Y >= y_seg[j]) & (location_Y <= y_seg[j+1])
+            if np.where(spot_ind == True)[0].shape[0] == 0:
+                continue
+            else:
+                spot_label[spot_ind] = 'spot_' + str(temp) 
+                spot_index[spot_ind] = int(temp)
+                spot_location_X[spot_ind] = (x_seg[i] + x_seg[i + 1]) / 2
+                spot_location_Y[spot_ind] = (y_seg[j] + y_seg[j + 1]) / 2
+                temp += 1
+
+    spatial_adata.obs['spot_index'] = spot_index
+    spatial_adata.obs['spot_label'] = spot_label
+    spatial_adata.obs['spot_X'] = spot_location_X
+    spatial_adata.obs['spot_Y'] = spot_location_Y
+
+
+    cell_num = np.zeros(spatial_adata.shape[0], dtype=int)
+    for i in np.unique(spatial_adata.obs['spot_index']):
+        ind = spatial_adata.obs['spot_index'] == i
+        cell_num[ind] = ind.sum()
+
+    spatial_adata.obs['cell_nums'] = cell_num
     
+    
+    return spatial_adata
+
+
+def generate_spot_adata_func(spatial_adata, sample_UMI = 520): # spatial_adata is in count scale
+    if isinstance(spatial_adata.X, scipy.sparse.csr_matrix):
+        data_exp = spatial_adata.X.toarray()
+    else:
+        data_exp = spatial_adata.X
+    mean_UMI = data_exp.sum(1).mean()
+    def C_sample(a, sample_UMI):
+        mean = a.mean(0).squeeze()
+        if a.sum(0).squeeze().astype(int).sum() < int(sample_UMI) + 10:
+            subsample = a.sum(0).squeeze()
+        else:
+            ball = [[i] * a.sum(0).squeeze().astype(int)[i] for i in range(data_exp.shape[1])]
+            choose_a = [item for sublist in ball for item in sublist]
+            subsample_unique = np.random.choice(a=choose_a, size=int(sample_UMI), replace=False)
+            u, indices = np.unique(subsample_unique, return_counts = True)
+            subsample = np.zeros(data_exp.shape[1])
+            subsample[u] = indices
+    #     subsample = subsample * (data_exp.sum(-1).mean() / subsample.sum())
+        return subsample
+
+
+    generated_spot = []
+    generated_spot_index = []
+    generated_spot_cell_num = []
+    generated_spot_obs = pd.DataFrame()
+    generated_spot_location_X = []
+    generated_spot_location_Y = []
+
+    for i in np.unique(spatial_adata.obs['spot_index']):
+        ind = spatial_adata.obs['spot_index'] == i
+        generated_spot.append(C_sample(data_exp[ind].copy(), sample_UMI)[None,:])
+        generated_spot_index.append('spot_' + str(i))
+        generated_spot_cell_num.append(spatial_adata.obs['cell_nums'][ind][0])
+        generated_spot_location_X.append(spatial_adata.obs['spot_X'][ind][0])
+        generated_spot_location_Y.append(spatial_adata.obs['spot_Y'][ind][0])
+
+    generated_spot_obs['x'] = generated_spot_location_X
+    generated_spot_obs['y'] = generated_spot_location_Y
+    generated_spot_obs['cell_nums'] = generated_spot_cell_num
+    generated_spot_obs.index = generated_spot_index
+
+    generated_spot_adata = AnnData(X = np.concatenate(generated_spot), var = spatial_adata.var, obs = generated_spot_obs)
+    return generated_spot_adata
+
+def rename_cell_locations_obs(spatial_adata):
+    reorder_ind = []
+    for i in np.unique(spatial_adata.obs['spot_index']):
+        reorder_ind = reorder_ind + list(np.where(spatial_adata.obs['spot_index'] == i)[0])
+
+    spatial_adata_reorder = spatial_adata[np.array(reorder_ind)]
+
+    temp_obs = spatial_adata_reorder.obs.copy()
+    cell_index = []
+    for i in np.unique(temp_obs['spot_index']):
+        ind = temp_obs['spot_index'] == i
+        for j in range(ind.sum(0)):
+            cell_index  = cell_index + ['spot_' + str(i) + '_' + str(j)]
+    temp_obs['cell_index'] =  cell_index       
+
+    temp_obs = temp_obs.rename(columns={"spot_index":"spot_index_int", 'spot_label': 'spot_index'})
+    return temp_obs
+    
+    
+  
+ 
+
+
 '''    
 from assocplots.manhattan import *
 from assocplots.qqplot import *

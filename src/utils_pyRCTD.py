@@ -29,6 +29,7 @@ warnings.filterwarnings('ignore')
 
 
 def run_RCTD(RCTD, Q_mat_all, X_vals_loc, doublet_mode = 'full', loggings = None):
+    print(doublet_mode)
     RCTD = fitBulk(RCTD, loggings = loggings)
     RCTD = choose_sigma_c(RCTD, Q_mat_all, X_vals_loc, loggings = loggings)
     RCTD = fitPixels(RCTD, doublet_mode = doublet_mode, loggings = loggings)
@@ -364,7 +365,7 @@ def restrict_puck(puck, barcodes):
     puck['coords'] =  puck['coords'].loc[barcodes,:]
     return puck
 
-def create_RCTD(spatialRNA, reference, max_cores = 4, test_mode = False, gene_cutoff = 0.000125, fc_cutoff = 0.5, gene_cutoff_reg = 0.0002, fc_cutoff_reg = 0.75, UMI_min = 100, UMI_max = 20000000, UMI_min_sigma = 300, MIN_OBS = 3,
+def create_RCTD(spatialRNA, reference, max_cores = 4, test_mode = False, gene_cutoff = 0.000125, fc_cutoff = 0.5, gene_cutoff_reg = 0.0002, fc_cutoff_reg = 0.75, UMI_min = 100, UMI_max = 20000000, UMI_min_sigma = 100, MIN_OBS = 3,
                          class_df = None, CELL_MIN_INSTANCE = 25, cell_type_names = None, MAX_MULTI_TYPES = 4, keep_reference = False, cell_type_info = None, loggings = None):
     config = {'gene_cutoff': gene_cutoff, 'fc_cutoff': fc_cutoff, 'gene_cutoff_reg': gene_cutoff_reg, 'fc_cutoff_reg': fc_cutoff_reg, 'UMI_min': UMI_min, 'UMI_min_sigma': UMI_min_sigma, 'max_cores': max_cores,
                  'N_epoch': 8, 'N_X': 50000, 'K_val': 100, 'N_fit': 1000, 'N_epoch_bulk' :30, 'MIN_CHANGE_BULK': 0.0001, 'MIN_CHANGE_REG': 0.001, 'UMI_max': UMI_max, 'MIN_OBS': MIN_OBS, 'MAX_MULTI_TYPES': MAX_MULTI_TYPES}
@@ -540,7 +541,7 @@ def process_beads_batch(cell_type_info, gene_list, puck, class_df = None, constr
     inp_args = []
     
     for i in range(beads.shape[0]):
-        inp_args.append((cell_type_info, gene_list, puck['nUMI'].iloc[i].item(), beads.iloc[i,:], class_df, constrain, False, MIN_CHANGE, loggings, likelihood_vars))
+        inp_args.append((cell_type_info, gene_list, puck['nUMI'].iloc[i].item(), beads.iloc[i,:], class_df, constrain, False, MIN_CHANGE, loggings, likelihood_vars, i))
     
     results = ray.get([process_bead_doublet.remote(arg) for arg in inp_args])
     return results 
@@ -548,7 +549,8 @@ def process_beads_batch(cell_type_info, gene_list, puck, class_df = None, constr
     
 @ray.remote
 def process_bead_doublet(args):
-    cell_type_info, gene_list, UMI_tot, bead, class_df, constrain, verbose, MIN_CHANGE, loggings, likelihood_vars = args
+    cell_type_info, gene_list, UMI_tot, bead, class_df, constrain, verbose, MIN_CHANGE, loggings, likelihood_vars, i = args
+    loggings.info("proceed bead {}".format(i))
     cell_type_profiles = cell_type_info['cell_type_means'].loc[gene_list,:]
     cell_type_profiles = cell_type_profiles * UMI_tot
     # cell_type_profiles = data.matrix(cell_type_profiles)

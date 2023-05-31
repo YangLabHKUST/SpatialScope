@@ -138,6 +138,7 @@ def UpdateCellLabel(args):
 
 def SingleCellTypeIdentification(InitProp, cell_locations, spot_index_name, Q_mat_all, X_vals_loc, nu = 0, n_epoch = 8, n_neighbo=10, loggings = None, hs_ST = False):
     
+    nu = max(nu,1e-6)
     global df_j,com,init,signature_matrix,cell_type_names,likelihood_vars
     
 
