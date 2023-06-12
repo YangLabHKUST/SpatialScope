@@ -22,7 +22,8 @@ import seaborn as sns
 
 import warnings
 warnings.filterwarnings('ignore')
-
+import sys
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from utils import *
 from utils_CTI import *
 num_cpus = psutil.cpu_count(logical=False) 

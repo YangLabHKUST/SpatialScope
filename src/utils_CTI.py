@@ -23,7 +23,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
-from src.utils_pyRCTD import *
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+from utils_pyRCTD import *
 
 
 def find_neighbors(position, q=0.004, p=1):

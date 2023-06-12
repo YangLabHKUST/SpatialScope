@@ -8,6 +8,9 @@ import anndata
 import pandas as pd
 from PIL import Image 
 Image.MAX_IMAGE_PIXELS = 1000000000 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from utils import *
 
 

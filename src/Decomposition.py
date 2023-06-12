@@ -9,9 +9,10 @@ import tqdm
 import logging
 import scipy
 import json
+import sys
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 from SCGrad import SCGradNN, EMAHelper
-
 
 import warnings
 warnings.filterwarnings('ignore')

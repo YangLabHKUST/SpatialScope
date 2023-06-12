@@ -7,8 +7,20 @@ setup(
     url='https://github.com/YangLabHKUST/SpatialScope',
     author='Xiaomeng Wan (xwanaf@connect.ust.hk), Jiashun Xiao (jxiaoae@connect.ust.hk)',
     license='GPLv3',
-    packages=find_packages(['src','SCGrad']),
-    scripts=['src/Cell_Type_Identification.py'],#'src/Nuclei_Segmentation.py', 'Singlet_Doublet_Classification.py', 'Decomposition.py'],
+    packages=find_packages(),
+    scripts=['src/Cell_Type_Identification.py','src/Nuclei_Segmentation.py', 'src/Singlet_Doublet_Classification.py', 'src/Decomposition.py','src/Train_scRef.py'],
     include_package_data=True,    # 启用清单文件MANIFEST.in
-    exclude_package_date={'':['.gitignore']}
+    exclude_package_date={'':['.gitignore']},
+    install_requires = ['scanpy',
+                       'squidpy',
+                        'stardist',
+                        'tensorflow',
+                        'qpsolvers',
+                        'torch',
+                        'scikit-learn',
+                       'pandas',
+                       'matplotlib',
+                       'scipy',
+                       'ray']
 )
+

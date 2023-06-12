@@ -23,9 +23,10 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
 
-# from WaveGrad.utils import configure_logging
-from src.utils import *
-from src.utils_CTI import *
+import sys
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+from utils import *
+from utils_CTI import *
 num_cpus = psutil.cpu_count(logical=False) 
 os.environ["PYTHONPATH"] = os.getcwd()+ ":" + os.environ.get("PYTHONPATH", "")
 ray.shutdown()
@@ -277,16 +278,7 @@ if __name__ == "__main__":
             --SC_Data ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad 
     <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>  
     """ 
-    def str2bool(v):
-        if isinstance(v, bool):
-            return v
-        if v.lower() in ("yes", "true", "t", "y", "1"):
-            return True
-        elif v.lower() in ("no", "false", "f", "n", "0"):
-            return False
-        else:
-            raise argparse.ArgumentTypeError("Boolean value expected.")
-    
+  
     parser = argparse.ArgumentParser(description='simulation sour_sep')
     parser.add_argument('--tissue', type=str, help='tissue name', default=None)
     parser.add_argument('--out_dir', type=str, help='output path', default=None)
@@ -296,7 +288,7 @@ if __name__ == "__main__":
     parser.add_argument('--SC_Data', type=str, help='single cell reference data path', default=None)
     parser.add_argument('--cell_class_column', type=str, help='input cell class label column in scRef file', default = 'cell_type')    
     parser.add_argument('--hs_ST', action="store_true", help='high resolution ST data such as Slideseq, DBiT-seq, and HDST, MERFISH etc.')
-    parser.add_argument("--VisiumCellsPlot", type=str2bool, const=True, default=True, nargs="?", help="whether to plot in VisiumCells mode or just scatter plot")
+    parser.add_argument("--VisiumCellsPlot", action="store_true", help="whether to plot in VisiumCells mode or just scatter plot")
     parser.add_argument('--UMI_min_sigma', type=int, help='WarmStart parameter', default=300)
     parser.add_argument('--InitProp', type=str, help='whether to run warmstart', default = None)   
     args = parser.parse_args()
