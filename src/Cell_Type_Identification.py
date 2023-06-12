@@ -24,12 +24,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # from WaveGrad.utils import configure_logging
-from utils import *
-from utils_CTI import *
+from src.utils import *
+from src.utils_CTI import *
 num_cpus = psutil.cpu_count(logical=False) 
 os.environ["PYTHONPATH"] = os.getcwd()+ ":" + os.environ.get("PYTHONPATH", "")
 ray.shutdown()
-ray.init(num_cpus=num_cpus,_temp_dir='/tmp/ray')
+ray.init(num_cpus=num_cpus-2,_temp_dir='/tmp/ray')
 
 
 import copy

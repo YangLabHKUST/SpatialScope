@@ -19,6 +19,7 @@ dependencies:
   - scipy
   - tqdm
   - scikit-learn
+  - scikit-misc
   - pip
   - pip:
     - ray==2.0.0

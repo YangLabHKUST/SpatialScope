@@ -17,14 +17,13 @@ import ray
 
 data_type = 'float32'
 
-
 import matplotlib as mpl
 from matplotlib import rcParams
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
-from utils_pyRCTD import *
+from src.utils_pyRCTD import *
 
 
 def find_neighbors(position, q=0.004, p=1):
@@ -138,7 +137,6 @@ def UpdateCellLabel(args):
 
 def SingleCellTypeIdentification(InitProp, cell_locations, spot_index_name, Q_mat_all, X_vals_loc, nu = 0, n_epoch = 8, n_neighbo=10, loggings = None, hs_ST = False):
     
-    nu = max(nu,1e-6)
     global df_j,com,init,signature_matrix,cell_type_names,likelihood_vars
     
 
