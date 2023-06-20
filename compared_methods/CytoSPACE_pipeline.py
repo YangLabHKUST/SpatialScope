@@ -34,6 +34,18 @@ adata_st.var.index = [_.lower() for _ in adata_st.var.index]
 adata_st.var_names_make_unique()
 adata_st.obs_names_make_unique()
 
+if adata_st.X.max()<30:
+    try:
+        adata_st.X = np.exp(adata_st.X) - 1
+    except:
+        adata_st.X = np.exp(adata_st.X.toarray()) - 1
+        
+if adata_sc.X.max()<30:
+    try:
+        adata_sc.X = np.exp(adata_sc.X) - 1
+    except:
+        adata_sc.X = np.exp(adata_sc.X.toarray()) - 1
+
 sel_genes = list(set(adata_st.var.index.values)&set(adata_sc.var.index.values))
 
 adata_sc = adata_sc[:,sel_genes]
@@ -64,8 +76,12 @@ sp_express_df.index.name = 'GENES'
 sp_express_df.to_csv(sp_express_df_file_name,sep='\t')
 
 
-adata_st.obs['row'] = adata_st.obs['X']
-adata_st.obs['col'] = adata_st.obs['Y']
+try:
+    adata_st.obs['row'] = adata_st.obs['X']
+    adata_st.obs['col'] = adata_st.obs['Y']
+except:
+    adata_st.obs['row'] = adata_st.obs['x']
+    adata_st.obs['col'] = adata_st.obs['y']
 sp_coord_df = adata_st.obs[['row','col']]
 sp_coord_df.index.name = 'SpotID'
 sp_coord_df_file = tempfile.NamedTemporaryFile(suffix='.txt')
@@ -100,7 +116,8 @@ df = df.loc[~df['cytospace_result'].isnull()]
 df['cell_type_cytospace'] = df['cytospace_result'].apply(lambda x:x.split(':')[0])
 df['cell_index_cytospace'] = df['cytospace_result'].apply(lambda x:x.split(':')[1])
 
-df.to_csv('/'.join(output_file_path.split('/')[:-1]) + '/CytoSPACE_SinglecellMapping_result.txt')
+#df.to_csv('/'.join(output_file_path.split('/')[:-1]) + '/CytoSPACE_SinglecellMapping_result.txt')
+df.to_csv(output_file_path + '/CytoSPACE_SinglecellMapping_result.txt')
 
 ss_res = df.copy()
 ss_res = pd.pivot_table(ss_res[['spot_index','cell_type_cytospace']],index=['spot_index'],columns=['cell_type_cytospace'], aggfunc=len, fill_value=0).reset_index()
@@ -108,4 +125,5 @@ ss_res = ss_res.set_index("spot_index")
 ss_res = pd.DataFrame(ss_res.values/ss_res.values.sum(1)[:,None],columns=ss_res.columns,index=ss_res.index)
 ss_res = adata_st.obs[[]].merge(ss_res,left_index=True,right_index=True,how='left')
 ss_res = ss_res.fillna(0)
-ss_res.to_csv('/'.join(output_file_path.split('/')[:-1]) + '/CytoSPACE_result.txt')
+#ss_res.to_csv('/'.join(output_file_path.split('/')[:-1]) + '/CytoSPACE_result.txt')
+ss_res.to_csv(output_file_path + '/CytoSPACE_result.txt')

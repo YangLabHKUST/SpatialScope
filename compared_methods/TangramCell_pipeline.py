@@ -82,7 +82,14 @@ ad_sc = anndata.read_h5ad(sc_file_path)
 cell_locations = ad_sp.uns['cell_locations'].copy()
 
 
-
+if 'x' in ad_sp.obs.columns:
+    ad_sp.obs['X'] = ad_sp.obs['x']
+    ad_sp.obs['Y'] = ad_sp.obs['y']
+    cell_locations['X'] = cell_locations['x']
+    cell_locations['Y'] = cell_locations['y']
+if 'cell_nums' in ad_sp.obs.columns:
+    ad_sp.obs['cell_num'] = ad_sp.obs['cell_nums']
+    cell_locations['cell_num'] = cell_locations['cell_nums']
 
 ad_sp.obsm['spatial'] = ad_sp.obs[['X','Y']].values
 ad_sp_obsm_image_features = pd.DataFrame()

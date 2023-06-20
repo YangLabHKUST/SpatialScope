@@ -16,13 +16,14 @@ from utils import *
 
     
 class SpatialScopeNS:
-    def __init__(self,tissue,out_dir,ST_Data,Img_Data,prob_thresh,max_cell_number):
+    def __init__(self,tissue,out_dir,ST_Data,Img_Data,prob_thresh,max_cell_number,min_counts):
         self.tissue = tissue
         self.out_dir = out_dir 
         self.ST_Data = ST_Data
         self.Img_Data = Img_Data
         self.prob_thresh = prob_thresh
         self.max_cell_number = max_cell_number
+        self.min_counts = min_counts
         if not os.path.exists(out_dir):
             os.mkdir(out_dir)
         if not os.path.exists(os.path.join(out_dir,tissue)):
@@ -31,16 +32,16 @@ class SpatialScopeNS:
         self.out_dir = os.path.join(out_dir,tissue)
         loggings = configure_logging(os.path.join(self.out_dir,'logs'))
         self.loggings = loggings 
-        self.LoadData(self.ST_Data, self.Img_Data)
+        self.LoadData(self.ST_Data, self.Img_Data, self.min_counts)
 
 
-    def LoadData(self, ST_Data, Img_Data):
+    def LoadData(self, ST_Data, Img_Data, min_counts):
         self.loggings.info(f'Reading spatial data: {ST_Data}')
         sp_adata = anndata.read_h5ad(ST_Data)
         sp_adata.obs_names_make_unique()
         sp_adata.var_names_make_unique()
         self.loggings.info(f'Spatial data shape: {sp_adata.shape}')
-        sc.pp.filter_cells(sp_adata, min_counts=1000)
+        sc.pp.filter_cells(sp_adata, min_counts=min_counts)
         sc.pp.filter_cells(sp_adata, max_counts=20000)
         self.loggings.info(f'Spatial data shape after QC: {sp_adata.shape}')
         self.sp_adata = sp_adata
@@ -119,7 +120,7 @@ class SpatialScopeNS:
         
         self.sp_adata.obs["cell_count"] = self.sp_adata.obsm["image_features"]["segmentation_label"].astype(int)
         
-        fig, axes = plt.subplots(1, 3,figsize=(30,9),dpi=100)
+        fig, axes = plt.subplots(1, 3,figsize=(30,9),dpi=250)
         self.image.show("image", ax=axes[0])
         _ = axes[0].set_title("H&E")
         self.image.show("segmented_stardist_default", cmap="jet", interpolation="none", ax=axes[1])
@@ -164,11 +165,12 @@ if __name__ == "__main__":
     parser.add_argument('--out_dir', type=str, help='output path', default=None)
     parser.add_argument('--ST_Data', type=str, help='ST data path', default=None)
     parser.add_argument('--Img_Data', type=str, help='H&E stained image data path', default=None)
-    parser.add_argument('--prob_thresh', type=float, help='object probability threshold', default=0.5)
+    parser.add_argument('--prob_thresh', type=float, help='object probability threshol, decrease this parameter if too many nucleus are missing', default=0.5)
     parser.add_argument('--max_cell_number', type=int, help='maximum cell number per spot', default=20)
+    parser.add_argument('--min_counts', type=int, help='minimum UMI count per spot', default=500)
     args = parser.parse_args()
     
-    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh, args.max_cell_number)
+    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh, args.max_cell_number, args.min_counts)
     NS.NucleiSegmentation()
     
 

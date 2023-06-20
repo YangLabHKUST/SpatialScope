@@ -9,6 +9,8 @@ import subprocess
 
 import os
 
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+
 import cell2location
 import scvi
 

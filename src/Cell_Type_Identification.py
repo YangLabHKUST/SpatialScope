@@ -110,13 +110,13 @@ class SpatialScopeCTI:
             else:
                 self.loggings.error('Wrong spatial location shape: {}'.format(self.sp_adata.obsm['spatial'].shape))
                 sys.exit()
-
+        UMI_min = min(UMI_min,UMI_min_sigma)
         nUMI = pd.DataFrame(np.array(self.sp_adata.X.sum(-1)), index = self.sp_adata.obs.index)
         puck = SpatialRNA(coords, counts, nUMI)
         counts = self.sc_adata.to_df().T
         cell_types = pd.DataFrame(self.sc_adata.obs[self.cell_class_column])
         nUMI = pd.DataFrame(self.sc_adata.to_df().T.sum(0))
-        reference = Reference(counts, cell_types, nUMI)
+        reference = Reference(counts, cell_types, nUMI, loggings=self.loggings)
         myRCTD = create_RCTD(puck, reference, max_cores = 22, UMI_min=UMI_min, UMI_min_sigma = UMI_min_sigma, loggings = self.loggings)
         myRCTD = run_RCTD(myRCTD, self.Q_mat_all, self.X_vals_loc, loggings = self.loggings)
         self.InitProp = myRCTD
@@ -170,7 +170,7 @@ class SpatialScopeCTI:
             with open(os.path.join(self.out_dir, 'InitProp.pickle'), 'rb') as handle:
                 self.InitProp = pickle.load(handle)
                 self.LoadLikelihoodTable()
-            
+        cell_locations = cell_locations.loc[cell_locations['spot_index'].isin(self.InitProp['results'].index.values)]
         CellTypeLabel = SingleCellTypeIdentification(self.InitProp, cell_locations, 'spot_index', self.Q_mat_all, self.X_vals_loc, nu = nu, n_epoch = 8, n_neighbo = n_neighbo, loggings = self.loggings, hs_ST = hs_ST)
         label2ct = CellTypeLabel['label2ct']
         discrete_label = CellTypeLabel['discrete_label'].copy()
@@ -217,7 +217,7 @@ class SpatialScopeCTI:
         counts = self.sc_adata.to_df().T
         cell_types = pd.DataFrame(self.sc_adata.obs[self.cell_class_column])
         nUMI = pd.DataFrame(self.sc_adata.to_df().T.sum(0))
-        reference = Reference(counts, cell_types, nUMI)
+        reference = Reference(counts, cell_types, nUMI, loggings=self.loggings)
         estimated_be = calculate_batch_effect(puck, reference, add_genes, max_cores = 22, loggings = self.loggings)
             
         sp_data = self.sp_adata_be.copy()
