@@ -157,7 +157,7 @@ def psd(H):
 #         P = eig[1] @ np.diag(np.clip(eig[0], a_min = epsilon, a_max = eig[0].max() + 10)) @ eig[1].T
     return P
 
-def solveWLS(S,B,S_mat,initialSol, nUMI, bulk_mode = False, constrain = False, likelihood_vars = None):
+def solveWLS(S,B,S_mat,initialSol, nUMI, bulk_mode = False, constrain = False, likelihood_vars = None, solver = 'osqp'):
     solution = initialSol.copy()
     solution[solution < 0] = 0
     prediction = np.absolute(S @ solution)
@@ -176,13 +176,13 @@ def solveWLS(S,B,S_mat,initialSol, nUMI, bulk_mode = False, constrain = False, l
     bzero = -solution
     alpha = 0.3
     if constrain:
-        solution = solution + alpha*solve_qp(np.array(D_mat),-np.array(d_vec),-np.array(A),-np.array(bzero), np.ones(solution.shape[0]), 1 - solution.sum(), solver="osqp")
+        solution = solution + alpha*solve_qp(np.array(D_mat),-np.array(d_vec),-np.array(A),-np.array(bzero), np.ones(solution.shape[0]), 1 - solution.sum(), solver=solver)
     else:
-        solution = solution + alpha*solve_qp(np.array(D_mat),-np.array(d_vec),-np.array(A),-np.array(bzero), solver="osqp")
+        solution = solution + alpha*solve_qp(np.array(D_mat),-np.array(d_vec),-np.array(A),-np.array(bzero), solver=solver)
     return solution
 
 def solveIRWLS_weights(S,B,nUMI, OLS=False, constrain = True, verbose = False,
-                              n_iter = 50, MIN_CHANGE = .001, bulk_mode = False, solution = None, loggings = None, likelihood_vars = None):
+                              n_iter = 50, MIN_CHANGE = .001, bulk_mode = False, solution = None, loggings = None, likelihood_vars = None, solver = 'osqp'):
     if not bulk_mode:
         K_val = likelihood_vars['K_val']
         B = np.copy(B)
@@ -193,7 +193,7 @@ def solveIRWLS_weights(S,B,nUMI, OLS=False, constrain = True, verbose = False,
     change = 1
     changes = []
     while (change > MIN_CHANGE) & (iterations < n_iter):
-        new_solution = solveWLS(S,B,S_mat,solution, nUMI,constrain=constrain, bulk_mode = bulk_mode, likelihood_vars = likelihood_vars)
+        new_solution = solveWLS(S,B,S_mat,solution, nUMI,constrain=constrain, bulk_mode = bulk_mode, likelihood_vars = likelihood_vars, solver = solver)
         change = np.linalg.norm(new_solution-solution, 1)
         if verbose:
             loggings.info('Change: {}'.format(change))
@@ -208,8 +208,12 @@ def decompose_full_ray(args):
     bulk_mode = False
     verbose = False
     n_iter = 50
-    results = solveIRWLS_weights(cell_type_profiles,bead,nUMI,OLS = OLS, constrain = constrain,
-                               verbose = verbose, n_iter = n_iter, MIN_CHANGE = MIN_CHANGE, bulk_mode = bulk_mode, loggings = loggings, likelihood_vars = likelihood_vars)
+    try:
+        results = solveIRWLS_weights(cell_type_profiles,bead,nUMI,OLS = OLS, constrain = constrain,
+                                   verbose = verbose, n_iter = n_iter, MIN_CHANGE = MIN_CHANGE, bulk_mode = bulk_mode, loggings = loggings, likelihood_vars = likelihood_vars, solver = 'osqp')
+    except:
+        results = solveIRWLS_weights(cell_type_profiles,bead,nUMI,OLS = OLS, constrain = constrain,
+                                   verbose = verbose, n_iter = n_iter, MIN_CHANGE = MIN_CHANGE, bulk_mode = bulk_mode, loggings = loggings, likelihood_vars = likelihood_vars, solver = 'cvxopt')
     return results
 
 
