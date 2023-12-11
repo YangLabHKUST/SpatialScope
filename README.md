@@ -142,7 +142,7 @@ The checkpoints and sampled psuedo-cells will be saved in `./Ckpts_scRefs/Heart_
 
 Due to the low sequencing depth (~2000 UMIs per cell) of this Human Heart scRNA-seq reference, we changed the default parameters of sigma_begin, sigma_end and step_lr.
 
-As the sampling process of diffusion/score-based models requires hundreds to thousands of network evaluations to emulate a continuous process, the entire training process takes approximately 40 hours on four RTX 2080 Ti GPUs. Therefore, we are trying to accelarate the training process with some new technologies in the field of diffusion mode, such as stable diffusion and one-step difussion etc. 
+As the sampling process of diffusion/score-based models requires hundreds to thousands of network evaluations to emulate a continuous process, the entire training process takes approximately 40 hours on four RTX 2080 Ti GPUs. Therefore, we are trying to accelarate the training process with some new technologies in the field of diffusion model, such as stable diffusion and one-step diffussion etc. 
 
 Conveniently, we provided the pre-trained checkpoint (Ckpts_scRefs/Heart_D2/model_5000.pt) in [here](https://drive.google.com/drive/folders/1PXv_brtr-tXshBVEd_HSPIagjX9oF7Kg?usp=sharing), so you can skip this part.
 
