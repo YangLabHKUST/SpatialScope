@@ -83,16 +83,27 @@ Input:
 - --SC_Data: single-cell reference data file path (When using your own scRef file, we recommend adding a **Marker** column to the .var to pre-select several thousand marker or highly variable genes as in "./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad")
 - --cell_class_column: cell class label column in scRef file
   
+
 This step will generate three files:
 
 - Visualization of cell type identification results: estemated_ct_label.png
 - Cell type identification results: CellTypeLabel_nu10.csv
 - Preprocessed ST data for gene expression decomposition: sp_adata.h5ad
 
-Now we can use the sp_adata.h5ad to visualize the single-cell resolution spatial distribution of different cell types. 
+Now we can use the `sp_adata.h5ad` to visualize the single-cell resolution spatial distribution of different cell types:
+
+```python
+ad_sp = sc.read('./output/heart/sp_adata.h5ad')
+fig, ax = plt.subplots(1,1,figsize=(12, 8),dpi=100)
+PlotVisiumCells(ad_sp,"discrete_label_ct",size=0.3,alpha_img=0.3,lw=0.8,ax=ax)
+```
+![SpatialScope](https://github.com/YangLabHKUST/SpatialScope/blob/master/human-heart-crop.png)
+more details are available in jupyter notebook [Human Heart (Visium, a single slice)](https://github.com/YangLabHKUST/SpatialScope/blob/master/demos/Human-Heart.ipynb).
 
 
 ### Step3: Gene expression decomposition
+
+In Step3, by conditioning on the inferred cell type labels from Step2, SpatialScope performs gene expression decomposition, transforming the spot-level gene expression proﬁle into single-cell resolution. To do this, we ﬁrst learn a [score-based generative model](#Learning-the-gene-expression-distribution-of-scRNA-seq-reference-using-score-based-model) to approximate the expression distribution of different cell types from the single-cell reference data. Then we use the learned model to decompose gene expression from the spot level to the single-cell level, while accounting for the batch effect between single-cell reference and ST data.
 
 ```
 python ./src/Decomposition.py --tissue heart --out_dir  ./output --SC_Data ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad --cell_class_column cell_type  --ckpt_path ./Ckpts_scRefs/Heart_D2/model_5000.pt --spot_range 0,100 --gpu 0,1,2,3
@@ -114,17 +125,34 @@ This step will generate one file:
 
 ## Learning the gene expression distribution of scRNA-seq reference using score-based model
 
-We use four GPUs to train scRNA-seq reference in parallel.
+The scRNA-seq reference `./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad` was preprocessed following the standard precedures, more details available in jupyter notebook [Human Heart (Visium, a single slice)](https://github.com/YangLabHKUST/SpatialScope/blob/master/demos/Human-Heart.ipynb). In order to make the distribution learning process more **efficient**, we only learned the gene expression distributions of 2,000 selected highly variable genes.  Besides, we subsampled the number of cells per cell type, up to a maximum of 3,000. 
+
+
+We use four RTX 2080 Ti GPUs to train scRNA-seq reference in parallel.
+
 ```
 python ./src/Train_scRef.py \
---ckpt_path ./Ckpts_scRefs/VISp \
---scRef ./Ckpts_scRefs/VISp/Ref_scRNA_VISp_qc2_2Kgenes.h5ad \
---cell_class_column cell_subclass \
---gpus 0,1,2,3 
+--ckpt_path ./Ckpts_scRefs/Heart_D2 \
+--scRef ./Ckpts_scRefs/Heart_D2/Ref_Heart_sanger_D2.h5ad \
+--cell_class_column cell_type \
+--gpus 0,1,2,3 \
+--sigma_begin 50 --sigma_end 0.002 --step_lr 3e-7 
 ```
-The checkpoints and sampled psuedo-cells will be saved in ./Ckpts_scRefs/VISp, e.g, model_5000.pt, model_5000.h5ad
+The checkpoints and sampled psuedo-cells will be saved in `./Ckpts_scRefs/Heart_D2`, e.g, model_5000.pt, model_5000.h5ad. The pre-trained checkpoint can be used for any spatial data from the same tissue.
 
-Conveniently, we provided the pre-trained checkpoint (Ckpts_scRefs/VISp/model_5000.pt) in here, so you can skip this part
+Due to the low sequencing depth (~2000 UMIs per cell) of this Human Heart scRNA-seq reference, we changed the default parameters of sigma_begin, sigma_end and step_lr.
+
+As the sampling process of diffusion/score-based models requires hundreds to thousands of network evaluations to emulate a continuous process, the entire training process takes approximately 40 hours on four RTX 2080 Ti GPUs. Therefore, we are trying to accelarate the training process with some new technologies in the field of diffusion mode, such as stable diffusion and one-step difussion etc. 
+
+Conveniently, we provided the pre-trained checkpoint (Ckpts_scRefs/Heart_D2/model_5000.pt) in [here](https://drive.google.com/drive/folders/1PXv_brtr-tXshBVEd_HSPIagjX9oF7Kg?usp=sharing), so you can skip this part.
+
+
+
+## Frequently Asked Questions
+
+1. I have access to a 3090 alternatively 2x V100-SXM2. Will that work for imputing onto a 200,000 cell MERFISH dataset?
+
+   Answer: The minimum GPU requirement for SpatialScope is 2080 Ti. However, limited by GPU memory, we recommend impute 1000 cells at a time, more details are availabel in demo notebook [Mouse MOp (MERFISH)](https://github.com/YangLabHKUST/SpatialScope/blob/master/demos/Mouse-MOp-MERFISH.ipynb).
 
 
 ## Contact information
