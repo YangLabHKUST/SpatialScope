@@ -98,11 +98,11 @@ class SpatialScopeSDC:
         Q1 = {}
         for i in range(len(lines)):
             if i == 61:
-                Q1[str(72)] = np.reshape(np.array(lines[i].split(' ')).astype(np.float), (2536, 103)).T
+                Q1[str(72)] = np.reshape(np.array(lines[i].split(' ')).astype(np.float64), (2536, 103)).T
             elif i == 62:
-                Q1[str(74)] = np.reshape(np.array(lines[i].split(' ')).astype(np.float), (2536, 103)).T
+                Q1[str(74)] = np.reshape(np.array(lines[i].split(' ')).astype(np.float64), (2536, 103)).T
             else:
-                Q1[str(i + 10)] = np.reshape(np.array(lines[i].split(' ')).astype(np.float), (2536, 103)).T
+                Q1[str(i + 10)] = np.reshape(np.array(lines[i].split(' ')).astype(np.float64), (2536, 103)).T
 
         with gzip.open(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/extdata/Q_mat_2_1.txt.gz','rt') as f:
             lines2 = f.readlines()
@@ -111,7 +111,7 @@ class SpatialScopeSDC:
 
         Q2 = {}
         for i in range(len(lines2)):
-            Q2[str(int(i * 2 + 76))] = np.reshape(np.array(lines2[i].split(' ')).astype(np.float), (2536, 103)).T
+            Q2[str(int(i * 2 + 76))] = np.reshape(np.array(lines2[i].split(' ')).astype(np.float64), (2536, 103)).T
 
         Q_mat_all = Q1 | Q2
 
