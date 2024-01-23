@@ -85,8 +85,10 @@ class GeneExpDecomposition:
         if self.config.data.cell_class_column!=states['cell_type_column']:
             self.loggings.error('Wrong checkpoints/scRef file, checkpoint cell_class_column: {}, scRef cell_class_column: {}'.format(states['cell_class_column'],self.config.data.cell_class_column))
             sys.exit()
-        
-        model_single = SCGradNN(input_dim1 = self.data.shape[1], down_block_dim=states['down_block_dim'], factors = states['factors']).to(self.config.device)
+        if 'factors' in states.keys():
+            model_single = SCGradNN(input_dim1 = self.data.shape[1], down_block_dim=states['down_block_dim'], factors = states['factors']).to(self.config.device)
+        else:
+            model_single = SCGradNN(input_dim1 = self.data.shape[1], down_block_dim=states['down_block_dim']).to(self.config.device)
         model = nn.DataParallel(model_single, device_ids = list(range(torch.cuda.device_count())))
 
         ema_helper = EMAHelper()

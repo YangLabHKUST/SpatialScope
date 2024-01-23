@@ -9,17 +9,18 @@ dependencies:
   - scanpy=1.9.1
   - squidpy=1.2.2
   - stardist=0.8.3
-  - tensorflow=2.10.0
+  - tensorflow=2.8.1
   - qpsolvers=2.4.0
   - pytorch=1.12.1
   - pandas=1.4.2
   - matplotlib=3.5.2
-  - anndata
-  - ipykernel
-  - scipy
-  - tqdm
-  - scikit-learn
+  - anndata=0.8.0
+  - scipy=1.8.1
+  - tqdm=4.64.0
+  - scikit-learn=1.1.1
   - pip
   - pip:
     - ray==2.0.0
+    - pydantic==1.10.14
+ 
 

@@ -159,7 +159,7 @@ class SpatialScopeCTI:
         self.Q_mat_all = Q_mat_all
         self.X_vals_loc = X_vals_loc
         
-    def CellTypeIdentification(self, nu = 10, n_neighbo = 10, hs_ST = False, VisiumCellsPlot = True, UMI_min_sigma = 300):
+    def CellTypeIdentification(self, nu = 10, n_neighbo = 10, hs_ST = False, UMI_min_sigma = 300):
         cell_locations = self.sp_adata.uns['cell_locations'].copy()
         if self.InitProp is not None:
             self.WarmStart(hs_ST=hs_ST, UMI_min_sigma = UMI_min_sigma)
@@ -178,7 +178,7 @@ class SpatialScopeCTI:
         discrete_label.to_csv(os.path.join(self.out_dir, 'CellTypeLabel_nu' + str(nu) + '.csv'))
         self.sp_adata.uns['cell_locations'] = discrete_label
 
-        if hs_ST or not VisiumCellsPlot:
+        if hs_ST:
             fig, ax = plt.subplots(figsize=(10,8.5),dpi=100)
             sns.scatterplot(data=discrete_label, x="x",y="y",s=10,hue='discrete_label_ct',palette='tab20',legend=True)
             plt.axis('off')
@@ -186,7 +186,7 @@ class SpatialScopeCTI:
             plt.savefig(os.path.join(self.out_dir, 'estemated_ct_label.png'))
             plt.close()
         
-        elif VisiumCellsPlot:
+        elif:
             if self.sp_adata.obsm['spatial'].shape[1] == 2:
                 fig, ax = plt.subplots(1,1,figsize=(14, 8),dpi=200)
                 PlotVisiumCells(self.sp_adata,"discrete_label_ct",size=0.4,alpha_img=0.4,lw=0.4,palette='tab20',ax=ax)
@@ -288,7 +288,6 @@ if __name__ == "__main__":
     parser.add_argument('--SC_Data', type=str, help='single cell reference data path', default=None)
     parser.add_argument('--cell_class_column', type=str, help='input cell class label column in scRef file', default = 'cell_type')    
     parser.add_argument('--hs_ST', action="store_true", help='high resolution ST data such as Slideseq, DBiT-seq, and HDST, MERFISH etc.')
-    parser.add_argument("--VisiumCellsPlot", action="store_true", help="whether to plot in VisiumCells mode or just scatter plot")
     parser.add_argument('--UMI_min_sigma', type=int, help='WarmStart parameter', default=300)
     parser.add_argument('--InitProp', type=str, help='whether to run warmstart', default = None)   
     args = parser.parse_args()
@@ -302,4 +301,4 @@ if __name__ == "__main__":
         args.nu = int(args.nu)
     
     CTI = SpatialScopeCTI(args.tissue,args.out_dir, args.ST_Data, args.SC_Data, cell_class_column = args.cell_class_column, InitProp = args.InitProp)
-    CTI.CellTypeIdentification(nu = args.nu, n_neighbo = args.n_neighbo, hs_ST = args.hs_ST, VisiumCellsPlot = args.VisiumCellsPlot, UMI_min_sigma = args.UMI_min_sigma)
+    CTI.CellTypeIdentification(nu = args.nu, n_neighbo = args.n_neighbo, hs_ST = args.hs_ST, UMI_min_sigma = args.UMI_min_sigma)
