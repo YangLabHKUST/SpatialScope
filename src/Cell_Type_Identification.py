@@ -186,7 +186,7 @@ class SpatialScopeCTI:
             plt.savefig(os.path.join(self.out_dir, 'estemated_ct_label.png'))
             plt.close()
         
-        elif:
+        else:
             if self.sp_adata.obsm['spatial'].shape[1] == 2:
                 fig, ax = plt.subplots(1,1,figsize=(14, 8),dpi=200)
                 PlotVisiumCells(self.sp_adata,"discrete_label_ct",size=0.4,alpha_img=0.4,lw=0.4,palette='tab20',ax=ax)
