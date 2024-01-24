@@ -14,6 +14,13 @@ $ docker images
 Usage
 ```shell
 $ docker run -it --gpus all --ipc=host xiaojs95/spatialscope /bin/bash
+```
+update repository if necessary
+```shell
+$ git pull
+```
+check the installation status
+```shell
 $ python ./src/Cell_Type_Identification.py -h
 ```
 
