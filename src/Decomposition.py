@@ -78,6 +78,8 @@ class GeneExpDecomposition:
         
     def LoadModel(self):
         self.loggings.info(f'load checkpoint: {self.config.ckpt_path}')
+        self.loggings.info(f'is GPU availabel: {torch.cuda.is_available()}')
+        self.loggings.info(f'availabel GPUs: {torch.cuda.device_count()}')
         states = torch.load(self.config.ckpt_path, map_location=lambda storage, loc: storage)
         if self.data.shape[1]!=states['Genes'].shape[0]:
             self.loggings.error('Wrong checkpoints/scRef file, checkpoint gene number: {}, scRef marker genes number: {}'.format(states['Genes'].shape[0],self.data.shape[1]))

@@ -5,21 +5,30 @@ A unified approach for integrating spatial and single-cell transcriptomics data 
 
 Visit our [documentation](https://spatialscope-tutorial.readthedocs.io/en/latest/) for installation, tutorials, examples and more.
 
+## Installation using Docker
+Pull SpatialScope docker image from dockerhub
+```shell
+$ docker pull xiaojs95/spatialscope
+$ docker images
+```
+Usage
+```shell
+$ docker run -it --gpus all --ipc=host xiaojs95/spatialscope /bin/bash
+$ python ./src/Cell_Type_Identification.py -h
+```
+
 ## Installation
 ``` shell
 $ git clone https://github.com/YangLabHKUST/SpatialScope.git
 $ cd SpatialScope
 $ conda env create -f environment.yml
 $ conda activate SpatialScope
-$ python setup.py develop
-# fix bug of squidpy
+# fix bug of squidpy, locate the lib with `which python`
 $ rsync ./src/_feature_mixin.py ~/.conda/envs/SpatialScope/lib/python3.9/site-packages/squidpy/im/_feature_mixin.py
 ```
 check the installation status
 ```shell
 $ python ./src/Cell_Type_Identification.py -h
-# or directly if `python setup.py develop` has been run
-$ Cell_Type_Identification.py -h
 ```
 
 
