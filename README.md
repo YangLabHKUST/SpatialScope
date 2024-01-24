@@ -5,7 +5,22 @@ A unified approach for integrating spatial and single-cell transcriptomics data 
 
 Visit our [documentation](https://spatialscope-tutorial.readthedocs.io/en/latest/) for installation, tutorials, examples and more.
 
+## Installation
+``` shell
+$ git clone https://github.com/YangLabHKUST/SpatialScope.git
+$ cd SpatialScope
+$ conda env create -f environment.yml
+$ conda activate SpatialScope
+# fix bug of squidpy, locate the lib with `which python`
+$ rsync ./src/_feature_mixin.py ~/.conda/envs/SpatialScope/lib/python3.9/site-packages/squidpy/im/_feature_mixin.py
+```
+check the installation status
+```shell
+$ python ./src/Cell_Type_Identification.py -h
+```
+
 ## Installation using Docker
+If the installation is unsuccessful, you can consider using docker instead.
 Pull SpatialScope docker image from dockerhub, make sure docker and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) have been installed first.
 ```shell
 $ docker pull xiaojs95/spatialscope
@@ -23,21 +38,6 @@ check the installation status
 ```shell
 $ python ./src/Cell_Type_Identification.py -h
 ```
-
-## Installation
-``` shell
-$ git clone https://github.com/YangLabHKUST/SpatialScope.git
-$ cd SpatialScope
-$ conda env create -f environment.yml
-$ conda activate SpatialScope
-# fix bug of squidpy, locate the lib with `which python`
-$ rsync ./src/_feature_mixin.py ~/.conda/envs/SpatialScope/lib/python3.9/site-packages/squidpy/im/_feature_mixin.py
-```
-check the installation status
-```shell
-$ python ./src/Cell_Type_Identification.py -h
-```
-
 
 ## Reproducibility
 
