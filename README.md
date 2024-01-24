@@ -6,7 +6,7 @@ A unified approach for integrating spatial and single-cell transcriptomics data 
 Visit our [documentation](https://spatialscope-tutorial.readthedocs.io/en/latest/) for installation, tutorials, examples and more.
 
 ## Installation using Docker
-Pull SpatialScope docker image from dockerhub
+Pull SpatialScope docker image from dockerhub, make sure docker and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) have been installed first.
 ```shell
 $ docker pull xiaojs95/spatialscope
 $ docker images
