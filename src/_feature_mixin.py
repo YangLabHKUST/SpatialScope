@@ -349,8 +349,10 @@ class FeatureMixin:
             # coordinates in the uncropped image
             #print(y_slc.stop,y_slc.start,x,y,coord.slice[0].start)
             #sys.exit()
-            y = coord.slice[0].start + y#(y_slc.stop - y_slc.start) * y
-            x = coord.slice[1].start + x#(x_slc.stop - x_slc.start) * x
+            x_ = x
+            y_ = y
+            y = coord.slice[0].start + x_#(y_slc.stop - y_slc.start) * y
+            x = coord.slice[1].start + y_#(x_slc.stop - x_slc.start) * x
 
             return np.c_[x, y]  # type: ignore[no-any-return]
 
