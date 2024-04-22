@@ -42,7 +42,7 @@ class SpatialScopeNS:
         sp_adata.var_names_make_unique()
         self.loggings.info(f'Spatial data shape: {sp_adata.shape}')
         sc.pp.filter_cells(sp_adata, min_counts=min_counts)
-        sc.pp.filter_cells(sp_adata, max_counts=20000)
+        sc.pp.filter_cells(sp_adata, max_counts=50000)
         self.loggings.info(f'Spatial data shape after QC: {sp_adata.shape}')
         self.sp_adata = sp_adata
         

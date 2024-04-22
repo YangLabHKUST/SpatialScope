@@ -307,8 +307,11 @@ def get_cell_type_info(counts, cell_types, nUMI, cell_type_names = None):
     
     def get_cell_mean(cell_type):
         index = np.array(cell_types.iloc[:,0]) == cell_type
-        normData = counts.loc[:, index].values / nUMI[index].values.squeeze()[None,:]
-        return normData.mean(1).squeeze()
+        if index.sum() > 1:
+            normData = counts.loc[:, index].values / nUMI[index].values.squeeze()[None,:]
+            return normData.mean(1).squeeze()
+        else:
+            return counts.loc[:, index].values / nUMI[index].values.squeeze()
     
     cell_type_means = pd.DataFrame()
     for cell_type in cell_type_names:

@@ -158,13 +158,13 @@ class ConfigWrapper(object):
         return self.__dict__.__repr__()
     
     
-def removeOutliers(ad_sc_1k,cell_type):
+def removeOutliers(ad_sc_1k,cell_type,deviation=3):
     cell_types = np.unique(ad_sc_1k.obs[cell_type])
     valid_cells = []
     for c in cell_types:
         tmp = ad_sc_1k.obsm['X_umap'][ad_sc_1k.obs[cell_type]==c]
         tmp_norm = np.linalg.norm(tmp-tmp.mean(0),axis=1)
-        valid_cells += list(ad_sc_1k.obs.loc[ad_sc_1k.obs[cell_type]==c].index.values[tmp_norm<np.median(tmp_norm)*3])
+        valid_cells += list(ad_sc_1k.obs.loc[ad_sc_1k.obs[cell_type]==c].index.values[tmp_norm<np.median(tmp_norm)*deviation])
     return ad_sc_1k[ad_sc_1k.obs.index.isin(valid_cells)]
 
 
