@@ -16,7 +16,7 @@ from utils import *
 
     
 class SpatialScopeNS:
-    def __init__(self,tissue,out_dir,ST_Data,Img_Data,prob_thresh,max_cell_number,min_counts):
+    def __init__(self,tissue,out_dir,ST_Data,Img_Data,prob_thresh,max_cell_number,min_counts,max_counts):
         self.tissue = tissue
         self.out_dir = out_dir 
         self.ST_Data = ST_Data
@@ -24,6 +24,7 @@ class SpatialScopeNS:
         self.prob_thresh = prob_thresh
         self.max_cell_number = max_cell_number
         self.min_counts = min_counts
+        self.max_counts = max_counts
         if not os.path.exists(out_dir):
             os.mkdir(out_dir)
         if not os.path.exists(os.path.join(out_dir,tissue)):
@@ -32,17 +33,17 @@ class SpatialScopeNS:
         self.out_dir = os.path.join(out_dir,tissue)
         loggings = configure_logging(os.path.join(self.out_dir,'logs'))
         self.loggings = loggings 
-        self.LoadData(self.ST_Data, self.Img_Data, self.min_counts)
+        self.LoadData(self.ST_Data, self.Img_Data, self.min_counts, self.max_counts)
 
 
-    def LoadData(self, ST_Data, Img_Data, min_counts):
+    def LoadData(self, ST_Data, Img_Data, min_counts, max_counts):
         self.loggings.info(f'Reading spatial data: {ST_Data}')
         sp_adata = anndata.read_h5ad(ST_Data)
         sp_adata.obs_names_make_unique()
         sp_adata.var_names_make_unique()
         self.loggings.info(f'Spatial data shape: {sp_adata.shape}')
         sc.pp.filter_cells(sp_adata, min_counts=min_counts)
-        sc.pp.filter_cells(sp_adata, max_counts=50000)
+        sc.pp.filter_cells(sp_adata, max_counts=max_counts)
         self.loggings.info(f'Spatial data shape after QC: {sp_adata.shape}')
         self.sp_adata = sp_adata
         
@@ -88,7 +89,7 @@ class SpatialScopeNS:
             channel=None,
             method=self.stardist_2D_versatile_he,
             layer_added='segmented_stardist_default',
-            prob_thresh=self.prob_thresh)
+            prob_thresh=self.prob_thresh,nms_thresh=0.1)
         self.loggings.info(f"Number of segments: {len(np.unique(self.image['segmented_stardist_default']))}")
         
         # define image layer to use for segmentation
@@ -108,7 +109,7 @@ class SpatialScopeNS:
             key_added="image_features",
             features_kwargs=features_kwargs,
             features="segmentation",
-            mask_circle=True,
+            mask_circle=False,
         )
         
         df_cells = self.sp_adata.obsm['image_features'].copy().astype(object)
@@ -165,12 +166,13 @@ if __name__ == "__main__":
     parser.add_argument('--out_dir', type=str, help='output path', default=None)
     parser.add_argument('--ST_Data', type=str, help='ST data path', default=None)
     parser.add_argument('--Img_Data', type=str, help='H&E stained image data path', default=None)
-    parser.add_argument('--prob_thresh', type=float, help='object probability threshol, decrease this parameter if too many nucleus are missing', default=0.5)
+    parser.add_argument('--prob_thresh', type=float, help='object probability threshol, decrease this parameter if too many nucleus are missing', default=0.2)
     parser.add_argument('--max_cell_number', type=int, help='maximum cell number per spot', default=20)
     parser.add_argument('--min_counts', type=int, help='minimum UMI count per spot', default=500)
+    parser.add_argument('--max_counts', type=int, help='maximum UMI count per spot', default=50000)
     args = parser.parse_args()
     
-    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh, args.max_cell_number, args.min_counts)
+    NS = SpatialScopeNS(args.tissue, args.out_dir, args.ST_Data, args.Img_Data, args.prob_thresh, args.max_cell_number, args.min_counts, args.max_counts)
     NS.NucleiSegmentation()
     
 
